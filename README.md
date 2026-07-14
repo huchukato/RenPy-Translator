@@ -15,6 +15,10 @@
 
 > A universal GUI tool to automatically translate Ren'Py games — extracts scripts, detects dialogue and narration, and writes Ren'Py-compatible translation files (`tl/<lang>/`).
 
+<p align="center">
+  <img src="translator-gui.png" alt="Ren'Py Translator GUI" width="800">
+</p>
+
 ---
 
 ## ✨ Features
