@@ -7,3 +7,4 @@ translator_settings.json
 dist/
 build.sh
 logo.png
+uv.lock
