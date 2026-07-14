@@ -128,11 +128,35 @@ init -2 python:
     except Exception:
         pass
 
+    import re as _rt_re
+    _rt_tag_re = _rt_re.compile(r"\\{{[^}}]*}}")
+
+    def _rt_normalize(s):
+        s = s.replace("\\u2018", "'").replace("\\u2019", "'")
+        s = s.replace("\\u201c", '"').replace("\\u201d", '"')
+        s = s.replace("\\u2026", "...").replace("\\u2014", "--").replace("\\u2013", "-")
+        return _rt_re.sub(r"[ \\n]+", " ", s).strip()
+
     def _rt_filter(s):
-        try:
-            return _RT_MAP.get(s, s)
-        except Exception:
+        if not s:
             return s
+        try:
+            r = _RT_MAP.get(s)
+            if r is not None:
+                return r
+            n = _rt_normalize(s)
+            if n != s:
+                r = _RT_MAP.get(n)
+                if r is not None:
+                    return r
+            stripped = _rt_tag_re.sub("", s).strip()
+            if stripped and stripped != s:
+                r = _RT_MAP.get(stripped)
+                if r is not None:
+                    return r
+        except Exception:
+            pass
+        return s
 
 define config.say_menu_text_filter = _rt_filter
 '''
