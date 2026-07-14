@@ -33,6 +33,8 @@ _RE_DEFAULT = re.compile(r'^\s*default\s+(\w+)\s*=\s*"')
 _RE_HEX = re.compile(r"^#?[0-9a-fA-F]{3,8}$")
 _RE_CHARACTER = re.compile(r'^\s*define\s+\w+\s*=\s*Character\s*\(\s*["\']([^"\']+)["\']', re.IGNORECASE)
 _RE_ONLY_VARS = re.compile(r'^(\[[^\]]+\]|\{[^}]+\}|[\s$%.,!?])+$')
+_RE_DEFINE = re.compile(r'^\s*define\s+')
+_SKIP_FILES = {"options.rpy", "gui.rpy"}  # file tecnici da ignorare completamente
 
 
 def extract_character_names(game_dir: Path) -> set[str]:
@@ -101,6 +103,8 @@ def _ok(text: str) -> bool:
 
 
 def parse_rpy_file(file_path: Path, rel_from: Path, translate_ui: bool = True) -> list[ExtractedString]:
+    if file_path.name in _SKIP_FILES:
+        return []
     rel = str(file_path.relative_to(rel_from)).replace("\\", "/")
     try:
         content = file_path.read_text(encoding="utf-8", errors="replace")
@@ -114,10 +118,24 @@ def parse_rpy_file(file_path: Path, rel_from: Path, translate_ui: bool = True) -
     in_tl = False; tl_ind = 0
     in_tech = False; tech_ind = 0
     in_screen = False; screen_ind = 0
+    in_triple = False  # dentro blocco triple-quote
 
     for idx, raw in enumerate(lines, 1):
         stripped = raw.strip()
+        # Gestione blocchi triple-quote (""" o ''') — saltali completamente
+        if in_triple:
+            if '"""' in raw or "'''" in raw:
+                in_triple = False
+            continue
+        if ('"""' in raw or "'''" in raw) and not stripped.startswith('#'):
+            # Conta le occorrenze: se dispari, entriamo in triple-quote
+            if (raw.count('"""') + raw.count("'''")) % 2 == 1:
+                in_triple = True
+            continue
         if not stripped or _RE_COMMENT.match(stripped):
+            continue
+        # Salta righe define che non sono Character() — es. define gui.about = _p(
+        if _RE_DEFINE.match(raw) and not _RE_CHARACTER.match(raw):
             continue
 
         m = _RE_TRANSLATE.match(raw)
