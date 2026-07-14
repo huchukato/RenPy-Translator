@@ -668,7 +668,7 @@ class TranslatorApp(ctk.CTk):
             messagebox.showinfo("", "Nessuna traduzione da esportare.")
             return
 
-        game_name = self.extractor.game_dir.parent.name
+        game_name = self._game_display_name()
         default_name = f"{game_name}-{lang_folder}"
         dest = filedialog.askdirectory(title=f"Scegli cartella destinazione per '{default_name}'")
         if not dest:
@@ -734,6 +734,16 @@ class TranslatorApp(ctk.CTk):
         SETTINGS_FILE.write_text(json.dumps(self.settings, indent=2))
 
     # ─── Helpers ───────────────────────────────────────────────────────────
+
+    def _game_display_name(self) -> str:
+        _skip = {"game", "autorun", "Contents", "Resources", "MacOS", "data"}
+        p = self.extractor.game_dir
+        for part in reversed(p.parts):
+            if part.endswith(".app"):
+                return part[:-4]
+            if part not in _skip:
+                return part
+        return p.parent.name
 
     def t(self, key: str) -> str:
         return UI_TEXTS.get(self.lang, UI_TEXTS["en"]).get(key, key)
