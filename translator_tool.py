@@ -365,12 +365,8 @@ class TranslatorApp(ctk.CTk):
     # ─── Game Selection ────────────────────────────────────────────────────
 
     def _pick_app(self):
-        # Su macOS i .app sono directory — usiamo askdirectory con suggerimento
-        path = filedialog.askdirectory(title="Select .app bundle")
-        if path and path.endswith(".app"):
-            self._set_game(Path(path))
-        elif path:
-            # Selezionata cartella non .app — usala comunque
+        path = filedialog.askopenfilename(title="Select .app")
+        if path:
             self._set_game(Path(path))
 
     def _pick_folder(self):
