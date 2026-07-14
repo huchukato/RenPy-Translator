@@ -17,5 +17,6 @@ fi
 
 echo "[Translator] Starting..."
 cd "$SCRIPT_DIR"
+export UV_LINK_MODE=copy
 PYTHON_BIN=$(command -v python3 || command -v python)
 uv run --python "$PYTHON_BIN" translator_tool.py

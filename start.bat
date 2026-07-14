@@ -16,5 +16,6 @@ if %errorlevel% neq 0 (
 
 echo [Translator] Starting...
 cd /d "%~dp0"
+set UV_LINK_MODE=copy
 uv run translator_tool.py
 pause
