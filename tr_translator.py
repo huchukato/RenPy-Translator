@@ -58,6 +58,7 @@ class TranslatorConfig:
     llama_model_file: str = ""
     preserve_names: bool = False
     translate_menu: bool = False
+    character_names: frozenset = frozenset()
     timeout_s: int = 30
     batch_size: int = 50
 
@@ -494,8 +495,14 @@ class Translator:
     }
 
     def _is_name(self, text: str) -> bool:
-        """True se il testo sembra un nome proprio: parola singola, solo lettere, max 30 char."""
-        if not text or len(text) > 30 or ' ' in text or '\n' in text:
+        """True se il testo è un nome da preservare (nomi Character noti, poi euristica)."""
+        if not text or len(text) > 30 or '\n' in text:
+            return False
+        # Se abbiamo nomi estratti dai define, usiamo quelli come fonte primaria
+        if self.cfg.character_names:
+            return text in self.cfg.character_names
+        # Fallback euristica: parola singola, solo lettere, iniziale maiuscola, non comune
+        if ' ' in text:
             return False
         if not text.replace("'", "").replace("-", "").isalpha():
             return False

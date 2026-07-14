@@ -11,7 +11,7 @@ import customtkinter as ctk
 from tkinter import filedialog, messagebox
 
 from tr_extractor import TRExtractor
-from tr_parser import parse_rpy_file, ExtractedString
+from tr_parser import parse_rpy_file, ExtractedString, extract_character_names
 from tr_translator import Translator, TranslatorConfig, TranslationError, OPENROUTER_FREE_MODELS, LANG_NAMES
 from tr_writer import write_tl_files, write_activator
 
@@ -177,6 +177,7 @@ class TranslatorApp(ctk.CTk):
         self.extractor: TRExtractor | None = None
         self.items: list[ExtractedString] = []
         self._filtered: list[ExtractedString] = []
+        self.character_names: frozenset = frozenset()
         self._page = 0
         self._page_size = 100
         self.translator: Translator | None = None
@@ -444,6 +445,8 @@ class TranslatorApp(ctk.CTk):
 
             rpy_files = self.extractor.get_rpy_files()
             translate_menu = bool(self.translate_ui_var.get())
+            self.character_names = frozenset(extract_character_names(self.extractor.game_dir))
+            self.log(f"Characters found: {', '.join(sorted(self.character_names)[:10])}{'...' if len(self.character_names) > 10 else ''}")
             items = []
             for f in rpy_files:
                 items.extend(parse_rpy_file(f, self.extractor.game_dir, translate_menu))
@@ -494,6 +497,7 @@ class TranslatorApp(ctk.CTk):
             llama_model_file=s.get("llama_model_file", ""),
             preserve_names=bool(self.preserve_names_var.get()),
             translate_menu=bool(self.translate_ui_var.get()),
+            character_names=self.character_names,
         )
 
     def _translate_all(self):

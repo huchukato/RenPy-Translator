@@ -31,6 +31,27 @@ _RE_SAY = re.compile(r'^(\s*)([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)(?:\s+[^\s"]+)*\s*
 _RE_UI = re.compile(r'^\s*(textbutton|text|label|tooltip)\s+"')
 _RE_DEFAULT = re.compile(r'^\s*default\s+(\w+)\s*=\s*"')
 _RE_HEX = re.compile(r"^#?[0-9a-fA-F]{3,8}$")
+_RE_CHARACTER = re.compile(r'^\s*define\s+\w+\s*=\s*Character\s*\(\s*["\']([^"\']+)["\']', re.IGNORECASE)
+
+
+def extract_character_names(game_dir: Path) -> set[str]:
+    """
+    Scansiona tutti i .rpy in game_dir e raccoglie i nomi dai define:
+        define sac = Character('Sacha', ...)
+    Restituisce un set di stringhe come {'Sacha', 'Sarah', 'Mila', ...}.
+    """
+    names: set[str] = set()
+    for rpy in game_dir.rglob("*.rpy"):
+        try:
+            for line in rpy.read_text(encoding="utf-8", errors="replace").splitlines():
+                m = _RE_CHARACTER.match(line)
+                if m:
+                    name = m.group(1).strip()
+                    if name and not name.startswith("{"):
+                        names.add(name)
+        except Exception:
+            pass
+    return names
 
 
 def _indent(s: str) -> int:
