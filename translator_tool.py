@@ -182,6 +182,9 @@ class TranslatorApp(ctk.CTk):
         self.game_path: Path | None = None
         self.extractor: TRExtractor | None = None
         self.items: list[ExtractedString] = []
+        self._filtered: list[ExtractedString] = []
+        self._page = 0
+        self._page_size = 100
         self.translator: Translator | None = None
         self.settings: dict = {}
         self._load_settings()
@@ -325,6 +328,12 @@ class TranslatorApp(ctk.CTk):
         self.table_rows_frame.pack(fill="both", expand=True)
 
     def _build_log_tab(self):
+        log_top = ctk.CTkFrame(self.tab_log, fg_color="transparent", height=36)
+        log_top.pack(fill="x")
+        log_top.pack_propagate(False)
+        self.verbose_var = ctk.BooleanVar(value=False)
+        ctk.CTkCheckBox(log_top, text="Verbose (log every string)", variable=self.verbose_var,
+                        text_color=COLOR_SUBTEXT).pack(side="left", padx=12, pady=6)
         self.log_text = ctk.CTkTextbox(self.tab_log, fg_color=COLOR_BG,
                                        font=ctk.CTkFont(family="Courier", size=11))
         self.log_text.pack(fill="both", expand=True)
@@ -332,16 +341,26 @@ class TranslatorApp(ctk.CTk):
     # ─── Table rendering ───────────────────────────────────────────────────
 
     def _render_table(self, items: list[ExtractedString]):
+        self._filtered = items
+        self._page = 0
+        self._render_page()
+
+    def _render_page(self):
         for w in self.table_rows_frame.winfo_children():
             w.destroy()
+        items = self._filtered
+        start = self._page * self._page_size
+        end = start + self._page_size
+        page_items = items[start:end]
         cols_w = [40, 80, 100, 340, 340, 160]
-        for i, item in enumerate(items):
-            bg = COLOR_BG if i % 2 == 0 else COLOR_PANEL
+        for i, item in enumerate(page_items):
+            abs_i = start + i
+            bg = COLOR_BG if abs_i % 2 == 0 else COLOR_PANEL
             row = ctk.CTkFrame(self.table_rows_frame, fg_color=bg, height=28)
             row.pack(fill="x")
             row.pack_propagate(False)
             for val, w in [
-                (str(i + 1), cols_w[0]),
+                (str(abs_i + 1), cols_w[0]),
                 (item.kind, cols_w[1]),
                 (item.speaker or "", cols_w[2]),
                 (item.text[:60], cols_w[3]),
@@ -351,6 +370,28 @@ class TranslatorApp(ctk.CTk):
                 ctk.CTkLabel(row, text=val, width=w, anchor="w",
                              text_color=COLOR_TEXT if item.translated else COLOR_SUBTEXT,
                              font=ctk.CTkFont(size=11)).pack(side="left", padx=4)
+        # Pagination controls
+        total_pages = max(1, (len(items) + self._page_size - 1) // self._page_size)
+        pag = ctk.CTkFrame(self.table_rows_frame, fg_color=COLOR_PANEL, height=32)
+        pag.pack(fill="x", pady=(4, 0))
+        pag.pack_propagate(False)
+        ctk.CTkButton(pag, text="◀", width=36, fg_color=COLOR_ACCENT,
+                      command=self._prev_page).pack(side="left", padx=6, pady=4)
+        ctk.CTkLabel(pag, text=f"Page {self._page + 1} / {total_pages}  ({len(items)} strings)",
+                     text_color=COLOR_SUBTEXT, font=ctk.CTkFont(size=11)).pack(side="left", padx=8)
+        ctk.CTkButton(pag, text="▶", width=36, fg_color=COLOR_ACCENT,
+                      command=self._next_page).pack(side="left", padx=2, pady=4)
+
+    def _prev_page(self):
+        if self._page > 0:
+            self._page -= 1
+            self._render_page()
+
+    def _next_page(self):
+        total_pages = max(1, (len(self._filtered) + self._page_size - 1) // self._page_size)
+        if self._page < total_pages - 1:
+            self._page += 1
+            self._render_page()
 
     def _apply_filter(self):
         f = self.filter_var.get()
@@ -476,11 +517,12 @@ class TranslatorApp(ctk.CTk):
         def thread():
             try:
                 texts = [i.text for i in targets]
+                verbose = self.verbose_var.get()
                 result = self.translator.translate_many(
                     texts,
                     progress_cb=lambda d, t: self.root_after(
                         lambda d=d, t=t: self.progress.set(d / t)),
-                    log_cb=lambda orig, tr: self.log(f"  {orig[:40]} → {tr[:40]}"),
+                    log_cb=(lambda orig, tr: self.log(f"  {orig[:40]} → {tr[:40]}")) if verbose else None,
                 )
                 for item in targets:
                     item.translated = result.get(item.text, "")
