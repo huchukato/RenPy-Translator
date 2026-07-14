@@ -192,7 +192,7 @@ class Translator:
         "en-GB,en;q=0.9", "en-CA,en-US;q=0.7,en;q=0.3",
     ]
     _BING_CHAR_LIMIT = 9000  # max caratteri per request (Bing usa ~10054, usiamo 9000 per sicurezza)
-    _BING_SEP = "\n"          # separatore tra stringhe nello stesso chunk
+    _BING_SEP = "\n<<<SEP>>>\n"  # separatore univoco — Bing non traduce i token <<<>>> 
 
     def _bing_make_session(self, base_url: str = "https://www.bing.com", idx: int = 0) -> tuple:
         """Crea sessione con IG + AbusePreventionHelper. Ritorna (session, ig, key, token)."""
@@ -229,7 +229,7 @@ class Translator:
         cur_parts = []
         cur_len = 0
         for i, text in enumerate(texts):
-            t = text.replace(self._BING_SEP, " ")  # evita collisioni col separatore
+            t = text.replace("|||SEP|||", "[SEP]")  # sanifica eventuale collisione (molto rara)
             needed = len(t) + (1 if cur_parts else 0)  # +1 per il \n
             if cur_parts and cur_len + needed > self._BING_CHAR_LIMIT:
                 chunks.append((cur_indices, self._BING_SEP.join(cur_parts)))
@@ -241,24 +241,36 @@ class Translator:
             chunks.append((cur_indices, self._BING_SEP.join(cur_parts)))
         return chunks
 
-    def _bing_translate_chunk(self, session, chunk_text: str, src: str, tgt: str,
-                              ig: str, key: str, token: str,
-                              base_url: str = "https://www.bing.com") -> list[str]:
-        """Traduce un intero chunk (più stringhe concatenate) in una sola request."""
+    def _bing_post(self, session, text: str, src: str, tgt: str,
+                   ig: str, key: str, token: str,
+                   base_url: str = "https://www.bing.com") -> str:
+        """Singola POST a Bing — ritorna il testo tradotto grezzo."""
         r = session.post(
             f"{base_url}/ttranslatev3",
             params={"isVertical": "1", "IG": ig, "IID": "translator.5024"},
-            data={
-                "fromLang": src,
-                "to": tgt,
-                "text": chunk_text,
-                "token": token,
-                "key": key,
-            },
+            data={"fromLang": src, "to": tgt, "text": text, "token": token, "key": key},
             timeout=self.cfg.timeout_s,
         )
-        translated = r.json()[0]["translations"][0]["text"]
-        return translated.split(self._BING_SEP)
+        return r.json()[0]["translations"][0]["text"]
+
+    def _bing_translate_chunk(self, session, chunk_text: str, src: str, tgt: str,
+                              ig: str, key: str, token: str,
+                              base_url: str = "https://www.bing.com") -> list[str]:
+        """Traduce un chunk multi-stringa. Fallback 1-per-1 se lo split non torna."""
+        n_expected = chunk_text.count(self._BING_SEP) + 1
+        raw = self._bing_post(session, chunk_text, src, tgt, ig, key, token, base_url)
+        parts = raw.split(self._BING_SEP)
+        if len(parts) == n_expected:
+            return parts
+        # Fallback: ritraduce le singole stringhe originali
+        originals = chunk_text.split(self._BING_SEP)
+        results = []
+        for orig in originals:
+            try:
+                results.append(self._bing_post(session, orig, src, tgt, ig, key, token, base_url))
+            except Exception:
+                results.append(orig)
+        return results
 
     def _bing(self, texts: list[str], progress_cb=None, done_offset=0, total=0) -> list[str]:
         """Bing standard — una sessione, chunk multi-stringa."""
