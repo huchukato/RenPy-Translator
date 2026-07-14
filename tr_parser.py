@@ -28,14 +28,15 @@ _RE_COMMENT = re.compile(r'^\s*#')
 _RE_TRANSLATE = re.compile(r'^(\s*)translate\s+\w+\s+.*:\s*$')
 _RE_SCREEN = re.compile(r'^\s*screen\s+\w+\b.*:\s*$')
 _RE_SAY = re.compile(r'^(\s*)([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)(?:\s+[^\s"]+)*\s*"')
-_RE_UI = re.compile(r'^\s*(textbutton|text|label|tooltip)\s+"')
+_RE_UI = re.compile(r'^\s*(textbutton|text|label|tooltip)\s+(?:_\()?"')
 _RE_DEFAULT = re.compile(r'^\s*default\s+(\w+)\s*=\s*"')
 _RE_HEX = re.compile(r"^#?[0-9a-fA-F]{3,8}$")
 _RE_CHARACTER = re.compile(r'^\s*define\s+\w+\s*=\s*Character\s*\(\s*["\']([^"\']+)["\']', re.IGNORECASE)
 _RE_ONLY_VARS = re.compile(r'^(\[[^\]]+\]|\{[^}]+\}|[\s$%.,!?])+$')
 _RE_DEFINE = re.compile(r'^\s*define\s+')
 _RE_RENPY_INPUT = re.compile(r'renpy\.input\(\s*(["\'])(.+?)\1')
-_RE_RPY_TAG = re.compile(r'\{[^}]*\}')  # tag Ren'Py tipo {i}, {/i}, {color=#fff}
+_RE_RPY_TAG = re.compile(r'\{[^}]*\}')    # tag Ren'Py tipo {i}, {/i}, {color=#fff}
+_RE_GETTEXT = re.compile(r'\b_\(\s*"((?:[^\\"]|\\.)*)"\s*\)')  # _("...") Ren'Py i18n
 _SKIP_FILES = {"options.rpy", "gui.rpy", "images.rpy"}  # file tecnici da ignorare completamente
 _UI_FILES = {"screens.rpy"}  # parsare SOLO per UI string (textbutton/text/label)
 _TECH_WORDS = frozenset({
