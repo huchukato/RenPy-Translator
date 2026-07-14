@@ -11,7 +11,7 @@ import re
 import requests
 
 try:
-    from deep_translator import GoogleTranslator, MicrosoftTranslator
+    from deep_translator import GoogleTranslator
     GOOGLE_OK = True
 except ImportError:
     GOOGLE_OK = False
@@ -147,20 +147,50 @@ class Translator:
             return out
 
     def _bing(self, texts: list[str]) -> list[str]:
-        if not GOOGLE_OK:
-            raise TranslationError("deep-translator non installato: pip install deep-translator")
-        tr = MicrosoftTranslator(source=self.cfg.source_lang, target=self.cfg.target_lang)
+        """
+        Bing Translate via endpoint pubblico (no API key richiesta).
+        Ottiene prima un token di sessione, poi traduce.
+        """
+        import uuid
+        # Step 1: ottieni token/IG dalla homepage di Bing
+        session = requests.Session()
+        session.headers.update({
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Accept-Language": "en-US,en;q=0.9",
+        })
         try:
-            res = tr.translate_batch(texts)
-            return [r if r else t for r, t in zip(res, texts)]
+            home = session.get("https://www.bing.com/translator", timeout=10)
+            import re as _re
+            ig = _re.search(r'IG:"([^"]+)"', home.text)
+            iid = _re.search(r'data-iid="([^"]+)"', home.text)
+            ig_val = ig.group(1) if ig else ""
+            iid_val = iid.group(1) if iid else "translator.5028"
         except Exception:
-            out = []
-            for t in texts:
-                try:
-                    out.append(tr.translate(t) or t)
-                except Exception:
-                    out.append(t)
-            return out
+            ig_val = ""; iid_val = "translator.5028"
+
+        src = self.cfg.source_lang
+        tgt = self.cfg.target_lang
+        results = []
+        for text in texts:
+            try:
+                r = session.post(
+                    "https://www.bing.com/ttranslatev3",
+                    params={"isVertical": "1", "IG": ig_val, "IID": iid_val},
+                    data={
+                        "fromLang": src,
+                        "to": tgt,
+                        "text": text,
+                        "token": "",
+                        "key": "",
+                    },
+                    timeout=self.cfg.timeout_s,
+                )
+                data = r.json()
+                translated = data[0]["translations"][0]["text"]
+                results.append(translated if translated else text)
+            except Exception:
+                results.append(text)
+        return results
 
     def _libre(self, texts: list[str]) -> list[str]:
         ep = self.cfg.libre_endpoint.rstrip("/") + "/translate"
