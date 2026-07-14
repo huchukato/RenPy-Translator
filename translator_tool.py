@@ -260,7 +260,7 @@ class TranslatorApp(ctk.CTk):
                         command=self._on_checkbox).pack(side="left", padx=(16, 4))
 
         self.translate_ui_var = ctk.BooleanVar(value=self.settings.get("translate_ui", True))
-        ctk.CTkCheckBox(ctrl, text="Translate UI", variable=self.translate_ui_var,
+        ctk.CTkCheckBox(ctrl, text="Translate Menu", variable=self.translate_ui_var,
                         command=self._on_checkbox).pack(side="left", padx=4)
 
         # Tabs
