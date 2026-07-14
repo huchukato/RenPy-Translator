@@ -32,6 +32,7 @@ _RE_UI = re.compile(r'^\s*(textbutton|text|label|tooltip)\s+"')
 _RE_DEFAULT = re.compile(r'^\s*default\s+(\w+)\s*=\s*"')
 _RE_HEX = re.compile(r"^#?[0-9a-fA-F]{3,8}$")
 _RE_CHARACTER = re.compile(r'^\s*define\s+\w+\s*=\s*Character\s*\(\s*["\']([^"\']+)["\']', re.IGNORECASE)
+_RE_ONLY_VARS = re.compile(r'^(\[[^\]]+\]|\{[^}]+\}|[\s$%.,!?])+$')
 
 
 def extract_character_names(game_dir: Path) -> set[str]:
@@ -90,6 +91,8 @@ def _ok(text: str) -> bool:
         return False
     if t.startswith("[") and t.endswith("]"):
         return False
+    if _RE_ONLY_VARS.match(t):
+        return False
     if any(t.lower().endswith(ext) for ext in (".png", ".jpg", ".jpeg", ".webp", ".gif")):
         return False
     if "/" in t or "\\" in t:
@@ -105,6 +108,7 @@ def parse_rpy_file(file_path: Path, rel_from: Path, translate_menu: bool = True)
         return []
     lines = content.splitlines()
     results: list[ExtractedString] = []
+    seen_texts: set[str] = set()
 
     in_menu = False; menu_ind = 0
     in_tl = False; tl_ind = 0
@@ -133,8 +137,8 @@ def parse_rpy_file(file_path: Path, rel_from: Path, translate_menu: bool = True)
             else:
                 if translate_menu and _RE_UI.match(raw):
                     t = _first_quoted(raw)
-                    if t and _ok(t):
-                        results.append(ExtractedString("ui", t, rel, idx, None))
+                    if t and _ok(t) and t not in seen_texts:
+                        seen_texts.add(t); results.append(ExtractedString("ui", t, rel, idx, None))
                 continue
 
         fw = stripped.split(" ", 1)[0].rstrip(":")
@@ -156,16 +160,17 @@ def parse_rpy_file(file_path: Path, rel_from: Path, translate_menu: bool = True)
                 if t and _ok(t):
                     after = raw[raw.index(t) + len(t) + 1:]
                     if raw.lstrip().startswith('"') and ':' in after:
-                        if translate_menu:
-                            results.append(ExtractedString("menu", t, rel, idx, None))
+                        if translate_menu and t not in seen_texts:
+                            seen_texts.add(t); results.append(ExtractedString("menu", t, rel, idx, None))
                     elif raw.lstrip().startswith('"'):
-                        results.append(ExtractedString("narration", t, rel, idx, None))
+                        if t not in seen_texts:
+                            seen_texts.add(t); results.append(ExtractedString("narration", t, rel, idx, None))
                     else:
                         m2 = _RE_SAY.match(raw)
                         if m2:
                             sp = m2.group(2).split(".", 1)[0]
-                            if sp not in _NON_DIALOGUE and sp not in _TECHNICAL:
-                                results.append(ExtractedString("dialogue", t, rel, idx, m2.group(2)))
+                            if sp not in _NON_DIALOGUE and sp not in _TECHNICAL and t not in seen_texts:
+                                seen_texts.add(t); results.append(ExtractedString("dialogue", t, rel, idx, m2.group(2)))
                 continue
 
         if stripped.startswith('$'):
@@ -174,8 +179,8 @@ def parse_rpy_file(file_path: Path, rel_from: Path, translate_menu: bool = True)
         m_def = _RE_DEFAULT.match(raw)
         if m_def:
             t = _first_quoted(raw)
-            if t and _ok(t):
-                results.append(ExtractedString("ui", t, rel, idx, None))
+            if t and _ok(t) and t not in seen_texts:
+                seen_texts.add(t); results.append(ExtractedString("ui", t, rel, idx, None))
             continue
 
         m_say = _RE_SAY.match(raw)
@@ -184,19 +189,19 @@ def parse_rpy_file(file_path: Path, rel_from: Path, translate_menu: bool = True)
             if sp in _NON_DIALOGUE or sp in _TECHNICAL or sp in {"old", "new"}:
                 continue
             t = _first_quoted(raw)
-            if t and _ok(t):
-                results.append(ExtractedString("dialogue", t, rel, idx, m_say.group(2)))
+            if t and _ok(t) and t not in seen_texts:
+                seen_texts.add(t); results.append(ExtractedString("dialogue", t, rel, idx, m_say.group(2)))
             continue
 
         if raw.lstrip().startswith('"'):
             t = _first_quoted(raw)
-            if t and _ok(t):
-                results.append(ExtractedString("narration", t, rel, idx, None))
+            if t and _ok(t) and t not in seen_texts:
+                seen_texts.add(t); results.append(ExtractedString("narration", t, rel, idx, None))
             continue
 
         if translate_menu and _RE_UI.match(raw):
             t = _first_quoted(raw)
-            if t and _ok(t):
-                results.append(ExtractedString("ui", t, rel, idx, None))
+            if t and _ok(t) and t not in seen_texts:
+                seen_texts.add(t); results.append(ExtractedString("ui", t, rel, idx, None))
 
     return results
