@@ -533,7 +533,7 @@ class TranslatorApp(ctk.CTk):
                 done = sum(1 for i in self.items if i.translated)
                 msg = self.t("translation_complete").format(done, len(self.items))
                 self.log(msg)
-                self.root_after(lambda: self._on_translation_done(msg))
+                self.root_after(lambda msg=msg: self._on_translation_done(msg))
             except TranslationError as e:
                 err = str(e)
                 self.log(f"Translation error: {err}")
@@ -553,7 +553,8 @@ class TranslatorApp(ctk.CTk):
         self._reset_buttons()
         self.btn_save.configure(state="normal")
         self._apply_filter()
-        messagebox.showinfo(self.t("translation_complete").split(":")[0], msg)
+        self.update_idletasks()
+        self.after(100, lambda: messagebox.showinfo(self.t("translation_complete").split(":")[0], msg))
 
     def _reset_buttons(self):
         self.btn_translate.configure(state="normal")
