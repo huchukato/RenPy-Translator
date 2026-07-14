@@ -258,8 +258,8 @@ class TranslatorApp(ctk.CTk):
         ctk.CTkCheckBox(ctrl, text="Preserve names", variable=self.preserve_names_var,
                         command=self._on_checkbox).pack(side="left", padx=(16, 4))
 
-        self.translate_ui_var = ctk.BooleanVar(value=self.settings.get("translate_menu", False))
-        ctk.CTkCheckBox(ctrl, text="Translate UI", variable=self.translate_ui_var,
+        self.translate_ui_var = ctk.BooleanVar(value=self.settings.get("translate_menu", True))
+        ctk.CTkCheckBox(ctrl, text="Menus & UI", variable=self.translate_ui_var,
                         command=self._on_checkbox).pack(side="left", padx=4)
 
         # Tabs
