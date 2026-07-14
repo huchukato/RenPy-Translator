@@ -434,7 +434,22 @@ class Translator:
             text = re.sub(r"(?:\u27ea\s*)?R\s*N\s*T\s*\d+(?:\s*\u27eb)?", repl, text, flags=re.IGNORECASE)
         return text
 
+    # Parole comuni da NON preservare anche se sembrano nomi
+    _COMMON_WORDS = {
+        "the", "it", "is", "yes", "no", "ok", "hi", "hey", "bye",
+        "wait", "stop", "go", "run", "but", "and", "or", "not", "so",
+        "what", "who", "how", "why", "when", "where", "now", "then",
+        "me", "my", "you", "your", "we", "our", "he", "she", "they",
+        "his", "her", "its", "their", "this", "that", "here", "there",
+        "oh", "ah", "um", "well", "just", "really", "very", "too",
+    }
+
     def _is_name(self, text: str) -> bool:
-        if not text or len(text) > 50 or ' ' in text or '\n' in text:
+        """True se il testo sembra un nome proprio: parola singola, solo lettere, max 30 char."""
+        if not text or len(text) > 30 or ' ' in text or '\n' in text:
             return False
-        return text[0].isupper() and text[1:].islower()
+        if not text.replace("'", "").replace("-", "").isalpha():
+            return False
+        if text.lower() in self._COMMON_WORDS:
+            return False
+        return text[0].isupper()
