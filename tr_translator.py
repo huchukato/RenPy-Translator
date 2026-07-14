@@ -446,14 +446,51 @@ class Translator:
             text = re.sub(r"(?:\u27ea\s*)?R\s*N\s*T\s*\d+(?:\s*\u27eb)?", repl, text, flags=re.IGNORECASE)
         return text
 
-    # Parole comuni da NON preservare anche se sembrano nomi
+    # Parole comuni da NON preservare anche se sembrano nomi propri
     _COMMON_WORDS = {
-        "the", "it", "is", "yes", "no", "ok", "hi", "hey", "bye",
-        "wait", "stop", "go", "run", "but", "and", "or", "not", "so",
-        "what", "who", "how", "why", "when", "where", "now", "then",
+        # pronomi / articoli / congiunzioni
+        "the", "it", "is", "a", "an", "of", "to", "in", "on", "at",
+        "and", "or", "but", "not", "so", "yet", "for", "nor", "both",
         "me", "my", "you", "your", "we", "our", "he", "she", "they",
-        "his", "her", "its", "their", "this", "that", "here", "there",
-        "oh", "ah", "um", "well", "just", "really", "very", "too",
+        "his", "her", "its", "their", "this", "that", "these", "those",
+        "here", "there", "then", "now", "when", "where", "who", "what",
+        "how", "why", "which", "whom",
+        # saluti / esclamazioni
+        "hi", "hey", "bye", "hello", "goodbye", "yes", "no", "ok", "okay",
+        "oh", "ah", "uh", "um", "hmm", "hm", "ow", "ow", "wow", "yay",
+        "damn", "shit", "fuck", "crap",
+        # verbi comuni
+        "go", "run", "stop", "wait", "come", "get", "let", "see", "say",
+        "do", "did", "does", "done", "be", "been", "was", "were", "are",
+        "have", "has", "had", "will", "would", "could", "should", "may",
+        "might", "must", "can", "need", "want", "know", "think", "feel",
+        "look", "take", "make", "give", "ask", "tell", "hear", "seem",
+        "leave", "stay", "help", "try", "use", "keep", "find", "move",
+        "bring", "show", "call", "talk", "walk", "turn", "start", "end",
+        "play", "save", "load", "exit", "skip", "back", "next", "open",
+        # aggettivi / avverbi comuni
+        "good", "bad", "great", "nice", "fine", "cool", "sure", "true",
+        "false", "right", "wrong", "sorry", "please", "thanks", "thank",
+        "maybe", "really", "very", "too", "just", "well", "only", "also",
+        "always", "never", "often", "still", "again", "even", "though",
+        "already", "almost", "enough", "little", "much", "more", "most",
+        "less", "least", "same", "other", "another", "every", "all",
+        "any", "some", "few", "many", "much", "each", "both", "half",
+        "new", "old", "big", "small", "long", "short", "high", "low",
+        "young", "first", "last", "next", "own", "free", "full", "open",
+        "ready", "real", "close", "hard", "easy", "fast", "slow", "late",
+        "early", "hot", "cold", "dark", "light", "happy", "sad", "mad",
+        "glad", "lucky", "alone", "alive", "dead", "lost", "safe", "sure",
+        # sostantivi comuni dei VN
+        "day", "night", "morning", "evening", "time", "year", "week",
+        "home", "room", "door", "house", "school", "work", "life", "love",
+        "heart", "mind", "hand", "eye", "eyes", "face", "voice", "name",
+        "friend", "family", "girl", "boy", "man", "woman", "people",
+        "thing", "world", "place", "way", "word", "story", "end", "part",
+        "chapter", "scene", "menu", "option", "choice", "save", "load",
+        "money", "job", "phone", "text", "message", "dream", "truth",
+        "secret", "past", "future", "moment", "together", "everything",
+        "nothing", "something", "anything", "everyone", "someone",
     }
 
     def _is_name(self, text: str) -> bool:
