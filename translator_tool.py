@@ -305,7 +305,8 @@ class TranslatorApp(ctk.CTk):
         ctk.CTkButton(bottom, text=self.t("settings"), fg_color=COLOR_ACCENT,
                       width=100, command=self._open_settings).pack(side="right", padx=10, pady=10)
 
-        ctk.CTkButton(bottom, text=self.lang.upper(), fg_color=COLOR_ACCENT,
+        next_lang = "IT" if self.lang == "en" else "EN"
+        ctk.CTkButton(bottom, text=next_lang, fg_color=COLOR_ACCENT,
                       width=50, command=self._toggle_lang).pack(side="right", padx=6, pady=10)
 
     def _build_strings_tab(self):
