@@ -447,7 +447,8 @@ class Translator:
             text = re.sub(r"(?:\u27ea\s*)?R\s*N\s*T\s*\d+(?:\s*\u27eb)?", repl, text, flags=re.IGNORECASE)
         return text
 
-    # Parole comuni da NON preservare anche se sembrano nomi propri
+    # Usato SOLO come fallback euristica quando il gioco non ha define=Character()
+    # e character_names è vuoto. In caso normale _is_name usa character_names direttamente.
     _COMMON_WORDS = {
         # pronomi / articoli / congiunzioni
         "the", "it", "is", "a", "an", "of", "to", "in", "on", "at",
