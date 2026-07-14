@@ -54,10 +54,11 @@ def write_tl_files(
             "",
         ]
 
+        had_content = False
         for item in file_items:
             old = item.text.strip()
             new = translations.get(item.text, "").strip()
-            if not old or not new or old == new:
+            if not old or not new:
                 continue
             if _RE_HEX.match(old) or old in seen:
                 continue
@@ -66,8 +67,10 @@ def write_tl_files(
             lines.append(f'    old "{_esc(old)}"')
             lines.append(f'    new "{_esc(new)}"')
             lines.append("")
+            had_content = True
 
-        out.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
-        written.append(out)
+        if had_content:
+            out.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+            written.append(out)
 
     return written
