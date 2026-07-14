@@ -146,12 +146,6 @@ class SettingsDialog(ctk.CTkToplevel):
         self.llama_file = ctk.CTkEntry(self, width=460)
         self.llama_file.pack(**pad)
 
-        self.preserve_names = ctk.CTkCheckBox(self, text="Preserve character names")
-        self.preserve_names.pack(anchor="w", **pad)
-
-        self.translate_menu = ctk.CTkCheckBox(self, text="Translate menu / UI strings")
-        self.translate_menu.pack(anchor="w", **pad)
-
         ctk.CTkButton(self, text="Save", command=self._save,
                       fg_color=COLOR_BTN_MAIN).pack(pady=12)
 
@@ -162,10 +156,6 @@ class SettingsDialog(ctk.CTkToplevel):
         self.or_model.set(s.get("openrouter_model", OPENROUTER_FREE_MODELS[0]))
         self.llama_repo.insert(0, s.get("llama_model_repo", "llmfan46/gemma-4-E4B-it-ultra-uncensored-heretic-GGUF"))
         self.llama_file.insert(0, s.get("llama_model_file", ""))
-        if s.get("preserve_names", False):
-            self.preserve_names.select()
-        if s.get("translate_menu", False):
-            self.translate_menu.select()
 
     def _save(self):
         self.parent.settings.update({
@@ -174,8 +164,6 @@ class SettingsDialog(ctk.CTkToplevel):
             "openrouter_model": self.or_model.get(),
             "llama_model_repo": self.llama_repo.get().strip(),
             "llama_model_file": self.llama_file.get().strip(),
-            "preserve_names": bool(self.preserve_names.get()),
-            "translate_menu": bool(self.translate_menu.get()),
         })
         self.parent._save_settings()
         self.destroy()
@@ -268,6 +256,14 @@ class TranslatorApp(ctk.CTk):
         self.backend_combo = ctk.CTkComboBox(ctrl, values=BACKENDS, width=120,
                                              variable=self.backend_var)
         self.backend_combo.pack(side="left", padx=4)
+
+        self.preserve_names_var = ctk.BooleanVar(value=self.settings.get("preserve_names", False))
+        ctk.CTkCheckBox(ctrl, text="Preserve names", variable=self.preserve_names_var,
+                        command=self._on_checkbox).pack(side="left", padx=(16, 4))
+
+        self.translate_ui_var = ctk.BooleanVar(value=self.settings.get("translate_menu", False))
+        ctk.CTkCheckBox(ctrl, text="Translate UI", variable=self.translate_ui_var,
+                        command=self._on_checkbox).pack(side="left", padx=4)
 
         # Tabs
         self.tabs = ctk.CTkTabview(self, fg_color=COLOR_PANEL)
@@ -368,8 +364,12 @@ class TranslatorApp(ctk.CTk):
     # ─── Game Selection ────────────────────────────────────────────────────
 
     def _pick_app(self):
-        path = filedialog.askopenfilename(filetypes=[("macOS App", "*.app"), ("All", "*.*")])
-        if path:
+        # Su macOS i .app sono directory — usiamo askdirectory con suggerimento
+        path = filedialog.askdirectory(title="Select .app bundle")
+        if path and path.endswith(".app"):
+            self._set_game(Path(path))
+        elif path:
+            # Selezionata cartella non .app — usala comunque
             self._set_game(Path(path))
 
     def _pick_folder(self):
@@ -437,6 +437,11 @@ class TranslatorApp(ctk.CTk):
 
     # ─── Translation ───────────────────────────────────────────────────────
 
+    def _on_checkbox(self):
+        self.settings["preserve_names"] = bool(self.preserve_names_var.get())
+        self.settings["translate_menu"] = bool(self.translate_ui_var.get())
+        self._save_settings()
+
     def _make_config(self) -> TranslatorConfig:
         lang_name = self.lang_var.get()
         target = LANGUAGES.get(lang_name, "it")
@@ -450,8 +455,8 @@ class TranslatorApp(ctk.CTk):
             openrouter_model=s.get("openrouter_model", OPENROUTER_FREE_MODELS[0]),
             llama_model_repo=s.get("llama_model_repo", ""),
             llama_model_file=s.get("llama_model_file", ""),
-            preserve_names=s.get("preserve_names", False),
-            translate_menu=s.get("translate_menu", False),
+            preserve_names=bool(self.preserve_names_var.get()),
+            translate_menu=bool(self.translate_ui_var.get()),
         )
 
     def _translate_all(self):
