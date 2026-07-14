@@ -564,13 +564,13 @@ class TranslatorApp(ctk.CTk):
         if not self.extractor or not self.items:
             return
         lang_name = self.lang_var.get()
-        lang_code = LANGUAGES.get(lang_name, "it")
+        lang_folder = lang_name.lower()  # es. "italian", "french", ...
         translations = {i.text: i.translated for i in self.items if i.translated}
         if not translations:
             messagebox.showinfo("", "Nessuna traduzione da salvare.")
             return
-        written = write_tl_files(self.extractor.game_dir, lang_code, self.items, translations)
-        msg = self.t("saved").format(len(written), self.extractor.game_dir / "tl" / lang_code)
+        written = write_tl_files(self.extractor.game_dir, lang_folder, self.items, translations)
+        msg = self.t("saved").format(len(written), self.extractor.game_dir / "tl" / lang_folder)
         self.log(msg)
         messagebox.showinfo("", msg)
 
