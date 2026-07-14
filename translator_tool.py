@@ -443,7 +443,7 @@ class TranslatorApp(ctk.CTk):
             self.root_after(lambda: self.progress.set(0.6))
 
             rpy_files = self.extractor.get_rpy_files()
-            translate_menu = self.settings.get("translate_menu", False)
+            translate_menu = bool(self.translate_ui_var.get())
             items = []
             for f in rpy_files:
                 items.extend(parse_rpy_file(f, self.extractor.game_dir, translate_menu))
@@ -470,9 +470,14 @@ class TranslatorApp(ctk.CTk):
     # ─── Translation ───────────────────────────────────────────────────────
 
     def _on_checkbox(self):
+        prev_menu = self.settings.get("translate_menu", False)
         self.settings["preserve_names"] = bool(self.preserve_names_var.get())
         self.settings["translate_menu"] = bool(self.translate_ui_var.get())
         self._save_settings()
+        if self.items and self.settings["translate_menu"] != prev_menu:
+            self.items = []
+            self._refresh_table()
+            self.log("⚠ Translate UI changed — re-run analysis to apply.")
 
     def _make_config(self) -> TranslatorConfig:
         lang_name = self.lang_var.get()
