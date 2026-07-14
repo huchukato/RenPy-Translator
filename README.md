@@ -65,7 +65,8 @@ Dependencies are installed automatically via `uv` on first launch.
 
 | Backend | Speed | Requires |
 |---|---|---|
-| **google** | Fast | nothing (free) |
+| **google** | Medium | nothing (free) |
+| **google_turbo** | ~3× faster | nothing (free) |
 | **bing** | Fast | nothing (free) |
 | **bing_turbo** | ~3× faster | nothing (free) |
 | **bing_ultra** | ~6× faster | nothing (free) |

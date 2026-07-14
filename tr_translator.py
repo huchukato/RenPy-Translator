@@ -48,7 +48,7 @@ LANG_NAMES = {
 
 @dataclass
 class TranslatorConfig:
-    backend: Literal["google", "bing", "bing_turbo", "bing_ultra", "openrouter", "llama"] = "bing_ultra"
+    backend: Literal["google", "google_turbo", "bing", "bing_turbo", "bing_ultra", "openrouter", "llama"] = "bing_ultra"
     source_lang: str = "en"
     target_lang: str = "it"
     libre_endpoint: str = "http://localhost:5000"
@@ -129,6 +129,8 @@ class Translator:
         b = self.cfg.backend
         if b == "google":
             return self._google(texts, progress_cb, done_offset, total)
+        elif b == "google_turbo":
+            return self._google_turbo(texts, progress_cb, done_offset, total)
         elif b == "bing":
             return self._bing(texts, progress_cb, done_offset, total)
         elif b == "bing_turbo":
@@ -141,7 +143,10 @@ class Translator:
             return self._llama(texts, log_cb)
         raise TranslationError(f"Backend sconosciuto: {b}")
 
-    _GOOGLE_CHAR_LIMIT = 5000  # deep_translator limita a 5000 char per chiamata
+    _GOOGLE_CHAR_LIMIT = 5000       # deep_translator limita a 5000 char per chiamata
+    _GOOGLE_TURBO_CHAR_LIMIT = 950  # limite sicuro per l'API pubblica diretta di Google
+    _GOOGLE_TURBO_WORKERS = 6       # sessioni parallele
+    _GOOGLE_TURBO_SEP = "\n<<<SEP>>>\n"  # separatore — Google non traduce <<<>>>
 
     def _google(self, texts: list[str], progress_cb=None, done_offset=0, total=0) -> list[str]:
         if not GOOGLE_OK:
@@ -176,6 +181,107 @@ class Translator:
             done += len(indices)
             if progress_cb and total:
                 progress_cb(min(done, total), total)
+        return results
+
+    def _google_turbo_session(self, idx: int = 0) -> requests.Session:
+        """Crea una sessione HTTP con User-Agent variato per Google Turbo."""
+        import random
+        ua_list = [
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0",
+        ]
+        s = requests.Session()
+        s.headers.update({
+            "User-Agent": ua_list[idx % len(ua_list)],
+            "Accept-Language": "en-US,en;q=0.9",
+            "Referer": "https://translate.google.com/",
+        })
+        return s
+
+    def _google_turbo_translate_chunk(self, session: requests.Session, chunk_text: str, src: str, tgt: str) -> list[str]:
+        """Traduce un chunk multi-stringa con l'API pubblica di Google. Ritorna lista di stringhe."""
+        sep = self._GOOGLE_TURBO_SEP
+        r = session.get(
+            "https://translate.googleapis.com/translate_a/single",
+            params={"client": "gtx", "sl": src, "tl": tgt, "dt": "t", "q": chunk_text},
+            timeout=self.cfg.timeout_s,
+        )
+        data = r.json()
+        translated = "".join(part[0] for part in data[0] if part[0])
+        parts = translated.split(sep)
+        originals = chunk_text.split(sep)
+        # allinea al numero di originali (Google può unire/spezzare parti)
+        if len(parts) == len(originals):
+            return parts
+        # fallback: ritorna il testo unico come prima stringa, il resto invariato
+        return [translated] + [""] * (len(originals) - 1)
+
+    def _google_turbo(self, texts: list[str], progress_cb=None, done_offset=0, total=0) -> list[str]:
+        """Google Turbo — 6 sessioni parallele, chunk 950 chars, API pubblica diretta."""
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        import threading
+        src, tgt = self.cfg.source_lang, self.cfg.target_lang
+        sep = self._GOOGLE_TURBO_SEP
+        lim = self._GOOGLE_TURBO_CHAR_LIMIT
+
+        # Build chunks
+        chunks: list[tuple[list[int], str]] = []
+        cur_idx: list[int] = []; cur_parts: list[str] = []; cur_len = 0
+        for i, text in enumerate(texts):
+            t = text.replace("<<<SEP>>>", "[SEP]")
+            needed = len(t) + (len(sep) if cur_parts else 0)
+            if cur_parts and cur_len + needed > lim:
+                chunks.append((cur_idx, sep.join(cur_parts)))
+                cur_idx = []; cur_parts = []; cur_len = 0
+            cur_idx.append(i); cur_parts.append(t); cur_len += needed
+        if cur_parts:
+            chunks.append((cur_idx, sep.join(cur_parts)))
+
+        sessions = [self._google_turbo_session(i) for i in range(self._GOOGLE_TURBO_WORKERS)]
+        results = list(texts)
+        done_count = [done_offset]
+        lock = threading.Lock()
+
+        def do_chunk(chunk_idx_data):
+            chunk_idx, (indices, chunk_text) = chunk_idx_data
+            sess = sessions[chunk_idx % len(sessions)]
+            try:
+                parts = self._google_turbo_translate_chunk(sess, chunk_text, src, tgt)
+                return indices, parts
+            except Exception:
+                # fallback stringa per stringa su sessione diversa
+                fallback_sess = sessions[(chunk_idx + 1) % len(sessions)]
+                originals = chunk_text.split(sep)
+                parts = []
+                for orig in originals:
+                    try:
+                        p = self._google_turbo_translate_chunk(fallback_sess, orig, src, tgt)
+                        parts.append(p[0] if p else orig)
+                    except Exception:
+                        parts.append(orig)
+                return indices, parts
+
+        with ThreadPoolExecutor(max_workers=self._GOOGLE_TURBO_WORKERS) as ex:
+            futures = {ex.submit(do_chunk, item): item for item in enumerate(chunks)}
+            for fut in as_completed(futures):
+                if self.cancelled:
+                    ex.shutdown(wait=False, cancel_futures=True)
+                    raise TranslationError("Traduzione annullata.")
+                try:
+                    indices, parts = fut.result()
+                    for i, p in zip(indices, parts):
+                        if p:
+                            results[i] = p
+                    with lock:
+                        done_count[0] += len(indices)
+                        if progress_cb and total:
+                            progress_cb(min(done_count[0], total), total)
+                except Exception:
+                    pass
         return results
 
     # ── Bing helpers ──────────────────────────────────────────────────────────
