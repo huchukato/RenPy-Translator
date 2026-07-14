@@ -33,7 +33,7 @@ LANGUAGES = {
     "German": "de", "Portuguese": "pt", "Japanese": "ja", "Chinese": "zh",
     "Russian": "ru", "Korean": "ko", "Arabic": "ar",
 }
-BACKENDS = ["google", "bing", "libre", "openrouter", "llama"]
+BACKENDS = ["google", "bing", "bing_turbo", "bing_ultra", "libre", "openrouter", "llama"]
 
 UI_TEXTS = {
     "en": {

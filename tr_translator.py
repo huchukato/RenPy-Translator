@@ -48,7 +48,7 @@ LANG_NAMES = {
 
 @dataclass
 class TranslatorConfig:
-    backend: Literal["google", "bing", "libre", "openrouter", "llama"] = "google"
+    backend: Literal["google", "bing", "bing_turbo", "bing_ultra", "libre", "openrouter", "llama"] = "google"
     source_lang: str = "en"
     target_lang: str = "it"
     libre_endpoint: str = "http://localhost:5000"
@@ -121,6 +121,10 @@ class Translator:
             return self._google(texts)
         elif b == "bing":
             return self._bing(texts)
+        elif b == "bing_turbo":
+            return self._bing_turbo(texts)
+        elif b == "bing_ultra":
+            return self._bing_ultra(texts)
         elif b == "libre":
             return self._libre(texts)
         elif b == "openrouter":
@@ -146,51 +150,117 @@ class Translator:
                     out.append(t)
             return out
 
-    def _bing(self, texts: list[str]) -> list[str]:
+    # ── Bing helpers ──────────────────────────────────────────────────────────
+
+    def _bing_make_session(self, base_url: str = "https://www.bing.com") -> tuple:
         """
-        Bing Translate via endpoint pubblico (no API key richiesta).
-        Ottiene prima un token di sessione, poi traduce.
+        Crea una sessione requests con IG + AbusePreventionHelper token.
+        Restituisce (session, ig, key, token).
         """
-        import uuid
-        # Step 1: ottieni token/IG dalla homepage di Bing
         session = requests.Session()
         session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                          "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Accept-Language": "en-US,en;q=0.9",
         })
+        ig_val = ""; key_val = ""; token_val = ""
         try:
-            home = session.get("https://www.bing.com/translator", timeout=10)
-            import re as _re
-            ig = _re.search(r'IG:"([^"]+)"', home.text)
-            iid = _re.search(r'data-iid="([^"]+)"', home.text)
-            ig_val = ig.group(1) if ig else ""
-            iid_val = iid.group(1) if iid else "translator.5028"
+            home = session.get(f"{base_url}/translator", timeout=10)
+            html = home.text
+            m_ig = re.search(r'IG:"([0-9A-F]+)"', html)
+            m_abuse = re.search(
+                r'var params_AbusePreventionHelper\s*=\s*\[(\d+),"([^"]+)",(\d+)\]', html
+            )
+            if m_ig:
+                ig_val = m_ig.group(1)
+            if m_abuse:
+                key_val = m_abuse.group(1)
+                token_val = m_abuse.group(2)
         except Exception:
-            ig_val = ""; iid_val = "translator.5028"
+            pass
+        return session, ig_val, key_val, token_val
 
-        src = self.cfg.source_lang
-        tgt = self.cfg.target_lang
+    def _bing_translate_one(self, session, text: str, src: str, tgt: str,
+                            ig: str, key: str, token: str,
+                            base_url: str = "https://www.bing.com") -> str:
+        r = session.post(
+            f"{base_url}/ttranslatev3",
+            params={"isVertical": "1", "IG": ig, "IID": "translator.5028"},
+            data={
+                "fromLang": src,
+                "to": tgt,
+                "text": text,
+                "token": token,
+                "key": key,
+            },
+            timeout=self.cfg.timeout_s,
+        )
+        data = r.json()
+        return data[0]["translations"][0]["text"]
+
+    def _bing(self, texts: list[str]) -> list[str]:
+        """Bing standard — una sessione, sequenziale."""
+        src, tgt = self.cfg.source_lang, self.cfg.target_lang
+        session, ig, key, token = self._bing_make_session()
         results = []
         for text in texts:
             try:
-                r = session.post(
-                    "https://www.bing.com/ttranslatev3",
-                    params={"isVertical": "1", "IG": ig_val, "IID": iid_val},
-                    data={
-                        "fromLang": src,
-                        "to": tgt,
-                        "text": text,
-                        "token": "",
-                        "key": "",
-                    },
-                    timeout=self.cfg.timeout_s,
-                )
-                data = r.json()
-                translated = data[0]["translations"][0]["text"]
-                results.append(translated if translated else text)
+                results.append(self._bing_translate_one(session, text, src, tgt, ig, key, token))
             except Exception:
                 results.append(text)
         return results
+
+    def _bing_turbo(self, texts: list[str]) -> list[str]:
+        """Bing Turbo — pool di 3 sessioni parallele con ThreadPoolExecutor."""
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        src, tgt = self.cfg.source_lang, self.cfg.target_lang
+        n_sessions = 3
+        sessions = [self._bing_make_session() for _ in range(n_sessions)]
+
+        def translate_one(idx_text):
+            idx, text = idx_text
+            sess, ig, key, token = sessions[idx % n_sessions]
+            try:
+                return idx, self._bing_translate_one(sess, text, src, tgt, ig, key, token)
+            except Exception:
+                return idx, text
+
+        results = [None] * len(texts)
+        with ThreadPoolExecutor(max_workers=n_sessions) as ex:
+            futures = {ex.submit(translate_one, (i, t)): i for i, t in enumerate(texts)}
+            for f in as_completed(futures):
+                idx, tr = f.result()
+                results[idx] = tr
+        return [r if r is not None else t for r, t in zip(results, texts)]
+
+    def _bing_ultra(self, texts: list[str]) -> list[str]:
+        """Bing Ultra — pool di 6 sessioni (3 www + 3 cn.bing.com) parallele."""
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        src, tgt = self.cfg.source_lang, self.cfg.target_lang
+        bases = ["https://www.bing.com"] * 3 + ["https://cn.bing.com"] * 3
+        sessions = [self._bing_make_session(b) for b in bases]
+
+        def translate_one(idx_text):
+            idx, text = idx_text
+            sess, ig, key, token = sessions[idx % len(sessions)]
+            base = bases[idx % len(bases)]
+            try:
+                return idx, self._bing_translate_one(sess, text, src, tgt, ig, key, token, base)
+            except Exception:
+                # fallback al primo
+                try:
+                    s, g, k, tk = sessions[0]
+                    return idx, self._bing_translate_one(s, text, src, tgt, g, k, tk)
+                except Exception:
+                    return idx, text
+
+        results = [None] * len(texts)
+        with ThreadPoolExecutor(max_workers=6) as ex:
+            futures = {ex.submit(translate_one, (i, t)): i for i, t in enumerate(texts)}
+            for f in as_completed(futures):
+                idx, tr = f.result()
+                results[idx] = tr
+        return [r if r is not None else t for r, t in zip(results, texts)]
 
     def _libre(self, texts: list[str]) -> list[str]:
         ep = self.cfg.libre_endpoint.rstrip("/") + "/translate"
