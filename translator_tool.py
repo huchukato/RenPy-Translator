@@ -33,7 +33,7 @@ LANGUAGES = {
     "German": "de", "Portuguese": "pt", "Japanese": "ja", "Chinese": "zh",
     "Russian": "ru", "Korean": "ko", "Arabic": "ar",
 }
-BACKENDS = ["google", "bing", "bing_turbo", "bing_ultra", "libre", "openrouter", "llama"]
+BACKENDS = ["google", "bing", "bing_turbo", "bing_ultra", "openrouter", "llama"]
 
 UI_TEXTS = {
     "en": {
@@ -118,7 +118,7 @@ class SettingsDialog(ctk.CTkToplevel):
         super().__init__(parent)
         self.parent = parent
         self.title("Settings")
-        self.geometry("500x520")
+        self.geometry("500x460")
         self.resizable(False, False)
         self.grab_set()
         self._build()
@@ -126,10 +126,6 @@ class SettingsDialog(ctk.CTkToplevel):
 
     def _build(self):
         pad = {"padx": 16, "pady": 6}
-        ctk.CTkLabel(self, text="LibreTranslate Endpoint:").pack(anchor="w", **pad)
-        self.libre_ep = ctk.CTkEntry(self, width=460)
-        self.libre_ep.pack(**pad)
-
         ctk.CTkLabel(self, text="OpenRouter API Key:").pack(anchor="w", **pad)
         self.or_key = ctk.CTkEntry(self, width=460, show="*")
         self.or_key.pack(**pad)
@@ -151,7 +147,6 @@ class SettingsDialog(ctk.CTkToplevel):
 
     def _load(self):
         s = self.parent.settings
-        self.libre_ep.insert(0, s.get("libre_endpoint", "http://localhost:5000"))
         self.or_key.insert(0, s.get("openrouter_api_key", ""))
         self.or_model.set(s.get("openrouter_model", OPENROUTER_FREE_MODELS[0]))
         self.llama_repo.insert(0, s.get("llama_model_repo", "llmfan46/gemma-4-E4B-it-ultra-uncensored-heretic-GGUF"))
@@ -159,7 +154,6 @@ class SettingsDialog(ctk.CTkToplevel):
 
     def _save(self):
         self.parent.settings.update({
-            "libre_endpoint": self.libre_ep.get().strip(),
             "openrouter_api_key": self.or_key.get().strip(),
             "openrouter_model": self.or_model.get(),
             "llama_model_repo": self.llama_repo.get().strip(),

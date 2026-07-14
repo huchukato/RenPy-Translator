@@ -48,7 +48,7 @@ LANG_NAMES = {
 
 @dataclass
 class TranslatorConfig:
-    backend: Literal["google", "bing", "bing_turbo", "bing_ultra", "libre", "openrouter", "llama"] = "bing_ultra"
+    backend: Literal["google", "bing", "bing_turbo", "bing_ultra", "openrouter", "llama"] = "bing_ultra"
     source_lang: str = "en"
     target_lang: str = "it"
     libre_endpoint: str = "http://localhost:5000"
@@ -96,9 +96,9 @@ class Translator:
         total = len(unique)
         done = 0
 
-        # Backend Bing: gestiscono internamente chunking e parallelismo
+        # Backend batch-nativi: gestiscono internamente chunking/parallelismo
         # — passare tutto in una volta è molto più veloce
-        if self.cfg.backend in ("bing", "bing_turbo", "bing_ultra"):
+        if self.cfg.backend in ("bing", "bing_turbo", "bing_ultra", "google"):
             if self.cancelled:
                 raise TranslationError("Traduzione annullata.")
             translated = self._translate_batch(unique, log_cb, progress_cb, 0, total)
@@ -127,37 +127,55 @@ class Translator:
     def _raw_batch(self, texts: list[str], log_cb=None, progress_cb=None, done_offset=0, total=0) -> list[str]:
         b = self.cfg.backend
         if b == "google":
-            return self._google(texts)
+            return self._google(texts, progress_cb, done_offset, total)
         elif b == "bing":
             return self._bing(texts, progress_cb, done_offset, total)
         elif b == "bing_turbo":
             return self._bing_turbo(texts, progress_cb, done_offset, total)
         elif b == "bing_ultra":
             return self._bing_ultra(texts, progress_cb, done_offset, total)
-        elif b == "libre":
-            return self._libre(texts)
         elif b == "openrouter":
             return self._openrouter(texts)
         elif b == "llama":
             return self._llama(texts, log_cb)
         raise TranslationError(f"Backend sconosciuto: {b}")
 
-    def _google(self, texts: list[str]) -> list[str]:
+    _GOOGLE_CHAR_LIMIT = 5000  # deep_translator limita a 5000 char per chiamata
+
+    def _google(self, texts: list[str], progress_cb=None, done_offset=0, total=0) -> list[str]:
         if not GOOGLE_OK:
             raise TranslationError("deep-translator non installato: pip install deep-translator")
         tr = GoogleTranslator(source=self.cfg.source_lang, target=self.cfg.target_lang,
                               timeout=self.cfg.timeout_s)
-        try:
-            res = tr.translate_batch(texts)
-            return [r if r else t for r, t in zip(res, texts)]
-        except Exception:
-            out = []
-            for t in texts:
-                try:
-                    out.append(tr.translate(t) or t)
-                except Exception:
-                    out.append(t)
-            return out
+        # Chunk per rispettare il limite di 5000 char di deep_translator
+        chunks: list[tuple[list[int], list[str]]] = []
+        cur_idx: list[int] = []; cur_texts: list[str] = []; cur_len = 0
+        for i, text in enumerate(texts):
+            t = text[:self._GOOGLE_CHAR_LIMIT]
+            if cur_texts and cur_len + len(t) > self._GOOGLE_CHAR_LIMIT:
+                chunks.append((cur_idx, cur_texts))
+                cur_idx = []; cur_texts = []; cur_len = 0
+            cur_idx.append(i); cur_texts.append(t); cur_len += len(t)
+        if cur_texts:
+            chunks.append((cur_idx, cur_texts))
+
+        results = list(texts)
+        done = done_offset
+        for indices, chunk_texts in chunks:
+            try:
+                res = tr.translate_batch(chunk_texts)
+                for i, r in zip(indices, res):
+                    results[i] = r if r else texts[i]
+            except Exception:
+                for i, t in zip(indices, chunk_texts):
+                    try:
+                        results[i] = tr.translate(t) or texts[i]
+                    except Exception:
+                        pass
+            done += len(indices)
+            if progress_cb and total:
+                progress_cb(min(done, total), total)
+        return results
 
     # ── Bing helpers ──────────────────────────────────────────────────────────
 
@@ -333,24 +351,6 @@ class Translator:
                     if progress_cb and total:
                         progress_cb(min(done_count[0], total), total)
         return results
-
-    def _libre(self, texts: list[str]) -> list[str]:
-        ep = self.cfg.libre_endpoint.rstrip("/") + "/translate"
-        r = requests.post(ep, json={
-            "q": texts,
-            "source": self.cfg.source_lang,
-            "target": self.cfg.target_lang,
-            "format": "text",
-        }, headers={"Content-Type": "application/json"}, timeout=self.cfg.timeout_s)
-        if r.status_code != 200:
-            raise TranslationError(f"LibreTranslate errore {r.status_code}")
-        data = r.json()
-        if isinstance(data, list):
-            return [i.get("translatedText", "") for i in data]
-        if isinstance(data, dict) and "translatedText" in data:
-            tt = data["translatedText"]
-            return tt if isinstance(tt, list) else [tt]
-        raise TranslationError("Risposta API non valida")
 
     def _openrouter(self, texts: list[str]) -> list[str]:
         src = LANG_NAMES.get(self.cfg.source_lang, self.cfg.source_lang)
