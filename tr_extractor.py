@@ -87,7 +87,7 @@ class TRExtractor:
         return True
 
     def get_rpy_files(self):
-        skip = {'gui', 'screens', 'options', 'images'}
+        skip = {'gui', 'options', 'images'}
         return [
             f for f in self.game_dir.rglob("*.rpy")
             if not any(x in f.name.lower() for x in skip)

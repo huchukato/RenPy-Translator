@@ -35,7 +35,9 @@ _RE_CHARACTER = re.compile(r'^\s*define\s+\w+\s*=\s*Character\s*\(\s*["\']([^"\'
 _RE_ONLY_VARS = re.compile(r'^(\[[^\]]+\]|\{[^}]+\}|[\s$%.,!?])+$')
 _RE_DEFINE = re.compile(r'^\s*define\s+')
 _RE_RENPY_INPUT = re.compile(r'renpy\.input\(\s*(["\'])(.+?)\1')
-_SKIP_FILES = {"options.rpy", "gui.rpy"}  # file tecnici da ignorare completamente
+_RE_RPY_TAG = re.compile(r'\{[^}]*\}')  # tag Ren'Py tipo {i}, {/i}, {color=#fff}
+_SKIP_FILES = {"options.rpy", "gui.rpy", "images.rpy"}  # file tecnici da ignorare completamente
+_UI_FILES = {"screens.rpy"}  # parsare SOLO per UI string (textbutton/text/label)
 
 
 def extract_character_names(game_dir: Path) -> set[str]:
@@ -98,7 +100,8 @@ def _ok(text: str) -> bool:
         return False
     if any(t.lower().endswith(ext) for ext in (".png", ".jpg", ".jpeg", ".webp", ".gif")):
         return False
-    if "/" in t or "\\" in t:
+    t_no_tags = _RE_RPY_TAG.sub("", t)
+    if "/" in t_no_tags or "\\" in t_no_tags:
         return False
     return True
 
@@ -106,6 +109,9 @@ def _ok(text: str) -> bool:
 def parse_rpy_file(file_path: Path, rel_from: Path, translate_ui: bool = True) -> list[ExtractedString]:
     if file_path.name in _SKIP_FILES:
         return []
+    ui_only = file_path.name in _UI_FILES  # screens.rpy: solo textbutton/text/label
+    if ui_only:
+        translate_ui = True
     rel = str(file_path.relative_to(rel_from)).replace("\\", "/")
     try:
         content = file_path.read_text(encoding="utf-8", errors="replace")
@@ -177,7 +183,7 @@ def parse_rpy_file(file_path: Path, rel_from: Path, translate_ui: bool = True) -
             else:
                 continue
 
-        if _RE_MENU.match(raw):
+        if not ui_only and _RE_MENU.match(raw):
             in_menu = True; menu_ind = _indent(raw); continue
         if in_menu:
             if _indent(raw) <= menu_ind and not raw.lstrip().startswith('#'):
@@ -211,21 +217,22 @@ def parse_rpy_file(file_path: Path, rel_from: Path, translate_ui: bool = True) -
                 seen_texts.add(t); results.append(ExtractedString("ui", t, rel, idx, None))
             continue
 
-        m_say = _RE_SAY.match(raw)
-        if m_say:
-            sp = m_say.group(2).split(".", 1)[0]
-            if sp in _NON_DIALOGUE or sp in _TECHNICAL or sp in {"old", "new"}:
+        if not ui_only:
+            m_say = _RE_SAY.match(raw)
+            if m_say:
+                sp = m_say.group(2).split(".", 1)[0]
+                if sp in _NON_DIALOGUE or sp in _TECHNICAL or sp in {"old", "new"}:
+                    continue
+                t = _first_quoted(raw)
+                if t and _ok(t) and t not in seen_texts:
+                    seen_texts.add(t); results.append(ExtractedString("dialogue", t, rel, idx, m_say.group(2)))
                 continue
-            t = _first_quoted(raw)
-            if t and _ok(t) and t not in seen_texts:
-                seen_texts.add(t); results.append(ExtractedString("dialogue", t, rel, idx, m_say.group(2)))
-            continue
 
-        if raw.lstrip().startswith('"'):
-            t = _first_quoted(raw)
-            if t and _ok(t) and t not in seen_texts:
-                seen_texts.add(t); results.append(ExtractedString("narration", t, rel, idx, None))
-            continue
+            if raw.lstrip().startswith('"'):
+                t = _first_quoted(raw)
+                if t and _ok(t) and t not in seen_texts:
+                    seen_texts.add(t); results.append(ExtractedString("narration", t, rel, idx, None))
+                continue
 
         if translate_ui and _RE_UI.match(raw):
             t = _first_quoted(raw)

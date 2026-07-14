@@ -35,6 +35,9 @@ def write_activator(game_dir: Path, lang_code: str, splash_src: Path | None = No
 image _rpt_splash = "renpy_translator_splash.png"
 
 label before_main_menu:
+    if persistent._rpt_splash_shown:
+        return
+    $ persistent._rpt_splash_shown = True
     scene black
     with Pause(0.5)
     show _rpt_splash at truecenter
