@@ -59,7 +59,7 @@ class TranslatorConfig:
     preserve_names: bool = False
     translate_menu: bool = False
     timeout_s: int = 30
-    batch_size: int = 20
+    batch_size: int = 50
 
 
 class TranslationError(RuntimeError):
@@ -94,37 +94,46 @@ class Translator:
             unique = [t for t in unique if t not in preserved]
 
         total = len(unique)
-        batches = [unique[i:i + self.cfg.batch_size] for i in range(0, total, self.cfg.batch_size)]
         done = 0
 
-        for batch in batches:
+        # Backend Bing: gestiscono internamente chunking e parallelismo
+        # — passare tutto in una volta è molto più veloce
+        if self.cfg.backend in ("bing", "bing_turbo", "bing_ultra"):
             if self.cancelled:
                 raise TranslationError("Traduzione annullata.")
-            translated = self._translate_batch(batch, log_cb)
-            for orig, tr in zip(batch, translated):
+            translated = self._translate_batch(unique, log_cb, progress_cb, 0, total)
+            for orig, tr in zip(unique, translated):
                 self.cache[orig] = tr
-                done += 1
-                if progress_cb:
-                    progress_cb(done, total)
+        else:
+            batches = [unique[i:i + self.cfg.batch_size] for i in range(0, total, self.cfg.batch_size)]
+            for batch in batches:
+                if self.cancelled:
+                    raise TranslationError("Traduzione annullata.")
+                translated = self._translate_batch(batch, log_cb)
+                for orig, tr in zip(batch, translated):
+                    self.cache[orig] = tr
+                    done += 1
+                    if progress_cb:
+                        progress_cb(done, total)
 
         return dict(self.cache)
 
-    def _translate_batch(self, texts: list[str], log_cb=None) -> list[str]:
+    def _translate_batch(self, texts: list[str], log_cb=None, progress_cb=None, done_offset=0, total=0) -> list[str]:
         protected, maps = zip(*[self._protect(t) for t in texts]) if texts else ([], [])
         protected = list(protected); maps = list(maps)
-        raw = self._raw_batch(protected, log_cb)
+        raw = self._raw_batch(protected, log_cb, progress_cb, done_offset, total)
         return [self._restore(r, m).replace("%", "%%") for r, m in zip(raw, maps)]
 
-    def _raw_batch(self, texts: list[str], log_cb=None) -> list[str]:
+    def _raw_batch(self, texts: list[str], log_cb=None, progress_cb=None, done_offset=0, total=0) -> list[str]:
         b = self.cfg.backend
         if b == "google":
             return self._google(texts)
         elif b == "bing":
-            return self._bing(texts)
+            return self._bing(texts, progress_cb, done_offset, total)
         elif b == "bing_turbo":
-            return self._bing_turbo(texts)
+            return self._bing_turbo(texts, progress_cb, done_offset, total)
         elif b == "bing_ultra":
-            return self._bing_ultra(texts)
+            return self._bing_ultra(texts, progress_cb, done_offset, total)
         elif b == "libre":
             return self._libre(texts)
         elif b == "openrouter":
@@ -233,28 +242,35 @@ class Translator:
         translated = r.json()[0]["translations"][0]["text"]
         return translated.split(self._BING_SEP)
 
-    def _bing(self, texts: list[str]) -> list[str]:
+    def _bing(self, texts: list[str], progress_cb=None, done_offset=0, total=0) -> list[str]:
         """Bing standard — una sessione, chunk multi-stringa."""
         src, tgt = self.cfg.source_lang, self.cfg.target_lang
         session, ig, key, token = self._bing_make_session()
         results = list(texts)
+        done = done_offset
         for indices, chunk_text in self._bing_split_chunks(texts):
             try:
                 parts = self._bing_translate_chunk(session, chunk_text, src, tgt, ig, key, token)
                 for i, p in zip(indices, parts):
                     results[i] = p.strip()
             except Exception:
-                pass  # lascia originale
+                pass
+            done += len(indices)
+            if progress_cb and total:
+                progress_cb(min(done, total), total)
         return results
 
-    def _bing_turbo(self, texts: list[str]) -> list[str]:
+    def _bing_turbo(self, texts: list[str], progress_cb=None, done_offset=0, total=0) -> list[str]:
         """Bing Turbo — 3 sessioni parallele, chunk multi-stringa per sessione."""
         from concurrent.futures import ThreadPoolExecutor, as_completed
+        import threading
         src, tgt = self.cfg.source_lang, self.cfg.target_lang
         n = 3
         sessions = [self._bing_make_session(idx=i) for i in range(n)]
         chunks = self._bing_split_chunks(texts)
         results = list(texts)
+        done_count = [done_offset]
+        lock = threading.Lock()
 
         def do_chunk(chunk_idx_data):
             chunk_idx, (indices, chunk_text) = chunk_idx_data
@@ -272,16 +288,23 @@ class Translator:
                 if parts:
                     for i, p in zip(indices, parts):
                         results[i] = p.strip()
+                with lock:
+                    done_count[0] += len(indices)
+                    if progress_cb and total:
+                        progress_cb(min(done_count[0], total), total)
         return results
 
-    def _bing_ultra(self, texts: list[str]) -> list[str]:
+    def _bing_ultra(self, texts: list[str], progress_cb=None, done_offset=0, total=0) -> list[str]:
         """Bing Ultra — 6 sessioni parallele (3 www + 3 cn.bing.com), chunk multi-stringa."""
         from concurrent.futures import ThreadPoolExecutor, as_completed
+        import threading
         src, tgt = self.cfg.source_lang, self.cfg.target_lang
         bases = ["https://www.bing.com"] * 3 + ["https://cn.bing.com"] * 3
         sessions = [self._bing_make_session(base_url=b, idx=i) for i, b in enumerate(bases)]
         chunks = self._bing_split_chunks(texts)
         results = list(texts)
+        done_count = [done_offset]
+        lock = threading.Lock()
 
         def do_chunk(chunk_idx_data):
             chunk_idx, (indices, chunk_text) = chunk_idx_data
@@ -291,7 +314,6 @@ class Translator:
                 parts = self._bing_translate_chunk(sess, chunk_text, src, tgt, ig, key, token, base)
                 return indices, parts
             except Exception:
-                # fallback www sessione 0
                 try:
                     s, g, k, tk = sessions[0]
                     parts = self._bing_translate_chunk(s, chunk_text, src, tgt, g, k, tk)
@@ -306,6 +328,10 @@ class Translator:
                 if parts:
                     for i, p in zip(indices, parts):
                         results[i] = p.strip()
+                with lock:
+                    done_count[0] += len(indices)
+                    if progress_cb and total:
+                        progress_cb(min(done_count[0], total), total)
         return results
 
     def _libre(self, texts: list[str]) -> list[str]:
