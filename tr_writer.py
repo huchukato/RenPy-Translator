@@ -13,7 +13,8 @@ _RE_HEX = re.compile(r"^#?[0-9a-fA-F]{3,8}$")
 
 
 def _esc(s: str) -> str:
-    return _RE_ESCAPE.sub(r"\\\1", s)
+    s = _RE_ESCAPE.sub(r"\\\1", s)
+    return s.replace("\n", "\\n").replace("\r", "").replace("\t", "\\t")
 
 
 def write_activator(game_dir: Path, lang_code: str, splash_src: Path | None = None) -> Path:

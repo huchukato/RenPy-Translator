@@ -34,6 +34,7 @@ _RE_HEX = re.compile(r"^#?[0-9a-fA-F]{3,8}$")
 _RE_CHARACTER = re.compile(r'^\s*define\s+\w+\s*=\s*Character\s*\(\s*["\']([^"\']+)["\']', re.IGNORECASE)
 _RE_ONLY_VARS = re.compile(r'^(\[[^\]]+\]|\{[^}]+\}|[\s$%.,!?])+$')
 _RE_DEFINE = re.compile(r'^\s*define\s+')
+_RE_RENPY_INPUT = re.compile(r'renpy\.input\(\s*(["\'])(.+?)\1')
 _SKIP_FILES = {"options.rpy", "gui.rpy"}  # file tecnici da ignorare completamente
 
 
@@ -136,6 +137,14 @@ def parse_rpy_file(file_path: Path, rel_from: Path, translate_ui: bool = True) -
             continue
         # Salta righe define che non sono Character() — es. define gui.about = _p(
         if _RE_DEFINE.match(raw) and not _RE_CHARACTER.match(raw):
+            continue
+        # Estrai prompt da renpy.input("...") nelle righe $ Python
+        if stripped.startswith('$'):
+            m_inp = _RE_RENPY_INPUT.search(raw)
+            if m_inp:
+                t = m_inp.group(2)
+                if t and _ok(t) and t not in seen_texts:
+                    seen_texts.add(t); results.append(ExtractedString("ui", t, rel, idx, None))
             continue
 
         m = _RE_TRANSLATE.match(raw)
