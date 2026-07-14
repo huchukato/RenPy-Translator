@@ -94,6 +94,12 @@ pip install customtkinter pillow deep-translator requests
 
 ---
 
+## 🎮 Uso con WTForge
+
+Se usi anche **[Ren'Py WTForge](https://github.com/huchukato/RenPy-WTForge)** per generare una mod walkthrough, **traduci sempre prima**, poi genera la mod — così WTForge include automaticamente i testi tradotti.
+
+---
+
 ## 🙏 Crediti
 
 - Tool di **[huchukato](https://f95zone.to/members/huchukato.11155677/)** (F95Zone)
