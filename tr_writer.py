@@ -104,6 +104,9 @@ def write_tl_files(
             new "..."
     """
     tl_dir = game_dir / "tl" / lang_code
+    if tl_dir.exists():
+        for f in tl_dir.glob("*.rpy"):
+            f.unlink()
     tl_dir.mkdir(parents=True, exist_ok=True)
 
     # Raggruppa per file sorgente
