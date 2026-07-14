@@ -53,7 +53,7 @@ class TRExtractor:
         return True
 
     def decompile_rpyc_files(self, progress_callback=None):
-        skip = {'gui', 'screens', 'options', 'images'}
+        skip = {'gui', 'options', 'images'}
         rpyc_files = [
             f for f in self.game_dir.rglob("*.rpyc")
             if not any(x in f.name.lower() for x in skip)

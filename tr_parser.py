@@ -38,6 +38,14 @@ _RE_RENPY_INPUT = re.compile(r'renpy\.input\(\s*(["\'])(.+?)\1')
 _RE_RPY_TAG = re.compile(r'\{[^}]*\}')  # tag Ren'Py tipo {i}, {/i}, {color=#fff}
 _SKIP_FILES = {"options.rpy", "gui.rpy", "images.rpy"}  # file tecnici da ignorare completamente
 _UI_FILES = {"screens.rpy"}  # parsare SOLO per UI string (textbutton/text/label)
+_TECH_WORDS = frozenset({
+    "True", "False", "None", "true", "false", "null",
+    "and", "or", "not", "in", "is", "if", "else", "elif",
+    "return", "pass", "break", "continue", "import", "from",
+    "define", "default", "label", "screen", "image", "show",
+    "hide", "scene", "play", "stop", "menu", "jump", "call",
+    "with", "init", "python", "style", "transform",
+})
 
 
 def extract_character_names(game_dir: Path) -> set[str]:
@@ -92,8 +100,13 @@ def _ok(text: str) -> bool:
         return False
     if all(ch in ".!?…,-:; " for ch in t):
         return False
-    if t.isidentifier():
+    if t in _TECH_WORDS:
         return False
+    if t.isidentifier():
+        # Blocca solo identificatori tecnici: snake_case, tutto-minuscolo ≤3 char,
+        # o puramente uppercase (costanti). Lascia passare parole comuni (Exit, Start…)
+        if "_" in t or (t == t.lower() and len(t) <= 3) or (t == t.upper() and len(t) <= 4):
+            return False
     if t.startswith("[") and t.endswith("]"):
         return False
     if _RE_ONLY_VARS.match(t):
