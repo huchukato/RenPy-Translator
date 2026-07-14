@@ -259,8 +259,8 @@ class TranslatorApp(ctk.CTk):
         ctk.CTkCheckBox(ctrl, text="Preserve names", variable=self.preserve_names_var,
                         command=self._on_checkbox).pack(side="left", padx=(16, 4))
 
-        self.translate_ui_var = ctk.BooleanVar(value=self.settings.get("translate_menu", True))
-        ctk.CTkCheckBox(ctrl, text="Menus & UI", variable=self.translate_ui_var,
+        self.translate_ui_var = ctk.BooleanVar(value=self.settings.get("translate_ui", True))
+        ctk.CTkCheckBox(ctrl, text="Translate UI", variable=self.translate_ui_var,
                         command=self._on_checkbox).pack(side="left", padx=4)
 
         # Tabs
@@ -444,13 +444,13 @@ class TranslatorApp(ctk.CTk):
             self.root_after(lambda: self.progress.set(0.6))
 
             rpy_files = self.extractor.get_rpy_files()
-            translate_menu = bool(self.translate_ui_var.get())
+            translate_ui = bool(self.translate_ui_var.get())
             self.character_names = frozenset(extract_character_names(self.extractor.game_dir))
             self.log(f"Characters found: {', '.join(sorted(self.character_names)[:10])}{'...' if len(self.character_names) > 10 else ''}")
             items = []
             seen_global: set[str] = set()
             for f in rpy_files:
-                for item in parse_rpy_file(f, self.extractor.game_dir, translate_menu):
+                for item in parse_rpy_file(f, self.extractor.game_dir, translate_ui):
                     if item.text in seen_global:
                         continue
                     if self.character_names and item.text in self.character_names:
@@ -480,11 +480,11 @@ class TranslatorApp(ctk.CTk):
     # ─── Translation ───────────────────────────────────────────────────────
 
     def _on_checkbox(self):
-        prev_menu = self.settings.get("translate_menu", False)
+        prev_ui = self.settings.get("translate_ui", True)
         self.settings["preserve_names"] = bool(self.preserve_names_var.get())
-        self.settings["translate_menu"] = bool(self.translate_ui_var.get())
+        self.settings["translate_ui"] = bool(self.translate_ui_var.get())
         self._save_settings()
-        if self.items and self.settings["translate_menu"] != prev_menu:
+        if self.items and self.settings["translate_ui"] != prev_ui:
             self.items = []
             self._refresh_table()
             self.log("⚠ Translate UI changed — re-run analysis to apply.")
@@ -503,7 +503,7 @@ class TranslatorApp(ctk.CTk):
             llama_model_repo=s.get("llama_model_repo", ""),
             llama_model_file=s.get("llama_model_file", ""),
             preserve_names=bool(self.preserve_names_var.get()),
-            translate_menu=bool(self.translate_ui_var.get()),
+            translate_menu=bool(self.translate_ui_var.get()),  # usato da TranslatorConfig
             character_names=self.character_names,
         )
 

@@ -100,7 +100,7 @@ def _ok(text: str) -> bool:
     return True
 
 
-def parse_rpy_file(file_path: Path, rel_from: Path, translate_menu: bool = True) -> list[ExtractedString]:
+def parse_rpy_file(file_path: Path, rel_from: Path, translate_ui: bool = True) -> list[ExtractedString]:
     rel = str(file_path.relative_to(rel_from)).replace("\\", "/")
     try:
         content = file_path.read_text(encoding="utf-8", errors="replace")
@@ -135,7 +135,7 @@ def parse_rpy_file(file_path: Path, rel_from: Path, translate_menu: bool = True)
             if _indent(raw) <= screen_ind and not raw.lstrip().startswith('#'):
                 in_screen = False
             else:
-                if translate_menu and _RE_UI.match(raw):
+                if translate_ui and _RE_UI.match(raw):
                     t = _first_quoted(raw)
                     if t and _ok(t) and t not in seen_texts:
                         seen_texts.add(t); results.append(ExtractedString("ui", t, rel, idx, None))
@@ -160,7 +160,7 @@ def parse_rpy_file(file_path: Path, rel_from: Path, translate_menu: bool = True)
                 if t and _ok(t):
                     after = raw[raw.index(t) + len(t) + 1:]
                     if raw.lstrip().startswith('"') and ':' in after:
-                        if translate_menu and t not in seen_texts:
+                        if t not in seen_texts:
                             seen_texts.add(t); results.append(ExtractedString("menu", t, rel, idx, None))
                     elif raw.lstrip().startswith('"'):
                         if t not in seen_texts:
@@ -199,7 +199,7 @@ def parse_rpy_file(file_path: Path, rel_from: Path, translate_menu: bool = True)
                 seen_texts.add(t); results.append(ExtractedString("narration", t, rel, idx, None))
             continue
 
-        if translate_menu and _RE_UI.match(raw):
+        if translate_ui and _RE_UI.match(raw):
             t = _first_quoted(raw)
             if t and _ok(t) and t not in seen_texts:
                 seen_texts.add(t); results.append(ExtractedString("ui", t, rel, idx, None))
