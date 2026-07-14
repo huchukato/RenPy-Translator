@@ -11,7 +11,7 @@ import re
 import requests
 
 try:
-    from deep_translator import GoogleTranslator
+    from deep_translator import GoogleTranslator, MicrosoftTranslator
     GOOGLE_OK = True
 except ImportError:
     GOOGLE_OK = False
@@ -48,7 +48,7 @@ LANG_NAMES = {
 
 @dataclass
 class TranslatorConfig:
-    backend: Literal["google", "libre", "openrouter", "llama"] = "google"
+    backend: Literal["google", "bing", "libre", "openrouter", "llama"] = "google"
     source_lang: str = "en"
     target_lang: str = "it"
     libre_endpoint: str = "http://localhost:5000"
@@ -119,6 +119,8 @@ class Translator:
         b = self.cfg.backend
         if b == "google":
             return self._google(texts)
+        elif b == "bing":
+            return self._bing(texts)
         elif b == "libre":
             return self._libre(texts)
         elif b == "openrouter":
@@ -132,6 +134,22 @@ class Translator:
             raise TranslationError("deep-translator non installato: pip install deep-translator")
         tr = GoogleTranslator(source=self.cfg.source_lang, target=self.cfg.target_lang,
                               timeout=self.cfg.timeout_s)
+        try:
+            res = tr.translate_batch(texts)
+            return [r if r else t for r, t in zip(res, texts)]
+        except Exception:
+            out = []
+            for t in texts:
+                try:
+                    out.append(tr.translate(t) or t)
+                except Exception:
+                    out.append(t)
+            return out
+
+    def _bing(self, texts: list[str]) -> list[str]:
+        if not GOOGLE_OK:
+            raise TranslationError("deep-translator non installato: pip install deep-translator")
+        tr = MicrosoftTranslator(source=self.cfg.source_lang, target=self.cfg.target_lang)
         try:
             res = tr.translate_batch(texts)
             return [r if r else t for r, t in zip(res, texts)]
