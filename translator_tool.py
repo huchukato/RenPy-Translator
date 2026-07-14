@@ -295,6 +295,11 @@ class TranslatorApp(ctk.CTk):
                                       state="disabled")
         self.btn_save.pack(side="left", padx=6, pady=10)
 
+        self.btn_export = ctk.CTkButton(bottom, text="Export",
+                                        fg_color="#1a5276", width=110, command=self._export_tl,
+                                        state="disabled")
+        self.btn_export.pack(side="left", padx=6, pady=10)
+
         self.btn_cancel = ctk.CTkButton(bottom, text=self.t("cancel"),
                                         fg_color=COLOR_BTN_WARN, width=100, command=self._cancel,
                                         state="disabled")
@@ -563,6 +568,7 @@ class TranslatorApp(ctk.CTk):
         self.progress_label.configure(text=msg)
         self._reset_buttons()
         self.btn_save.configure(state="normal")
+        self.btn_export.configure(state="normal")
         self._apply_filter()
         self.update_idletasks()
         self.after(100, lambda: messagebox.showinfo(self.t("translation_complete").split(":")[0], msg))
@@ -576,7 +582,48 @@ class TranslatorApp(ctk.CTk):
         if self.translator:
             self.translator.cancel()
 
-    # ─── Save TL ───────────────────────────────────────────────────────────
+    # ─── Save TL / Export ────────────────────────────────────────────────
+
+    def _export_tl(self):
+        if not self.extractor or not self.items:
+            return
+        lang_name = self.lang_var.get()
+        lang_folder = lang_name.lower()
+        translations = {i.text: i.translated for i in self.items if i.translated}
+        if not translations:
+            messagebox.showinfo("", "Nessuna traduzione da esportare.")
+            return
+
+        game_name = self.extractor.game_dir.parent.name
+        default_name = f"{game_name}-{lang_folder}"
+        dest = filedialog.askdirectory(title=f"Scegli cartella destinazione per '{default_name}'")
+        if not dest:
+            return
+        export_dir = Path(dest) / default_name
+
+        import shutil
+        tl_src = self.extractor.game_dir / "tl" / lang_folder
+        tl_dst = export_dir / "game" / "tl" / lang_folder
+        if tl_src.exists():
+            if tl_dst.exists():
+                shutil.rmtree(tl_dst)
+            shutil.copytree(tl_src, tl_dst)
+
+        activator_src = self.extractor.game_dir / f"renpy_translator_{lang_folder}.rpy"
+        if activator_src.exists():
+            act_dst = export_dir / "game" / activator_src.name
+            act_dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(activator_src, act_dst)
+
+        splash_src = self.extractor.game_dir / "renpy_translator_splash.png"
+        if splash_src.exists():
+            sp_dst = export_dir / "game" / splash_src.name
+            sp_dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(splash_src, sp_dst)
+
+        msg = f"Esportato in:\n{export_dir}"
+        self.log(msg)
+        messagebox.showinfo("Export", msg)
 
     def _save_tl(self):
         if not self.extractor or not self.items:
