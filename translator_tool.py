@@ -523,10 +523,6 @@ class TranslatorApp(ctk.CTk):
                     progress_cb=_progress,
                     log_cb=(lambda orig, tr: self.log(f"  {orig[:40]} → {tr[:40]}")) if verbose else None,
                 )
-                # DEBUG: log prime 3 entry del result
-                sample = list(result.items())[:3]
-                for k, v in sample:
-                    self.log(f"[DBG] {repr(k[:30])} => {repr(v[:30])}")
                 for item in targets:
                     item.translated = result.get(item.text, "")
                 done = sum(1 for i in self.items if i.translated)
