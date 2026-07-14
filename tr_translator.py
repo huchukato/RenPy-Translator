@@ -447,66 +447,8 @@ class Translator:
             text = re.sub(r"(?:\u27ea\s*)?R\s*N\s*T\s*\d+(?:\s*\u27eb)?", repl, text, flags=re.IGNORECASE)
         return text
 
-    # Usato SOLO come fallback euristica quando il gioco non ha define=Character()
-    # e character_names è vuoto. In caso normale _is_name usa character_names direttamente.
-    _COMMON_WORDS = {
-        # pronomi / articoli / congiunzioni
-        "the", "it", "is", "a", "an", "of", "to", "in", "on", "at",
-        "and", "or", "but", "not", "so", "yet", "for", "nor", "both",
-        "me", "my", "you", "your", "we", "our", "he", "she", "they",
-        "his", "her", "its", "their", "this", "that", "these", "those",
-        "here", "there", "then", "now", "when", "where", "who", "what",
-        "how", "why", "which", "whom",
-        # saluti / esclamazioni
-        "hi", "hey", "bye", "hello", "goodbye", "yes", "no", "ok", "okay",
-        "oh", "ah", "uh", "um", "hmm", "hm", "ow", "ow", "wow", "yay",
-        "damn", "shit", "fuck", "crap",
-        # verbi comuni
-        "go", "run", "stop", "wait", "come", "get", "let", "see", "say",
-        "do", "did", "does", "done", "be", "been", "was", "were", "are",
-        "have", "has", "had", "will", "would", "could", "should", "may",
-        "might", "must", "can", "need", "want", "know", "think", "feel",
-        "look", "take", "make", "give", "ask", "tell", "hear", "seem",
-        "leave", "stay", "help", "try", "use", "keep", "find", "move",
-        "bring", "show", "call", "talk", "walk", "turn", "start", "end",
-        "play", "save", "load", "exit", "skip", "back", "next", "open",
-        # aggettivi / avverbi comuni
-        "good", "bad", "great", "nice", "fine", "cool", "sure", "true",
-        "false", "right", "wrong", "sorry", "please", "thanks", "thank",
-        "maybe", "really", "very", "too", "just", "well", "only", "also",
-        "always", "never", "often", "still", "again", "even", "though",
-        "already", "almost", "enough", "little", "much", "more", "most",
-        "less", "least", "same", "other", "another", "every", "all",
-        "any", "some", "few", "many", "much", "each", "both", "half",
-        "new", "old", "big", "small", "long", "short", "high", "low",
-        "young", "first", "last", "next", "own", "free", "full", "open",
-        "ready", "real", "close", "hard", "easy", "fast", "slow", "late",
-        "early", "hot", "cold", "dark", "light", "happy", "sad", "mad",
-        "glad", "lucky", "alone", "alive", "dead", "lost", "safe", "sure",
-        # sostantivi comuni dei VN
-        "day", "night", "morning", "evening", "time", "year", "week",
-        "home", "room", "door", "house", "school", "work", "life", "love",
-        "heart", "mind", "hand", "eye", "eyes", "face", "voice", "name",
-        "friend", "family", "girl", "boy", "man", "woman", "people",
-        "thing", "world", "place", "way", "word", "story", "end", "part",
-        "chapter", "scene", "menu", "option", "choice", "save", "load",
-        "money", "job", "phone", "text", "message", "dream", "truth",
-        "secret", "past", "future", "moment", "together", "everything",
-        "nothing", "something", "anything", "everyone", "someone",
-    }
-
     def _is_name(self, text: str) -> bool:
-        """True se il testo è un nome da preservare (nomi Character noti, poi euristica)."""
-        if not text or len(text) > 30 or '\n' in text:
+        """True se il testo è un nome da preservare — basato esclusivamente su character_names."""
+        if not self.cfg.character_names:
             return False
-        # Se abbiamo nomi estratti dai define, usiamo quelli come fonte primaria
-        if self.cfg.character_names:
-            return text in self.cfg.character_names
-        # Fallback euristica: parola singola, solo lettere, iniziale maiuscola, non comune
-        if ' ' in text:
-            return False
-        if not text.replace("'", "").replace("-", "").isalpha():
-            return False
-        if text.lower() in self._COMMON_WORDS:
-            return False
-        return text[0].isupper()
+        return text in self.cfg.character_names
