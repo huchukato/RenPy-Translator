@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="README_it.md">🇮🇹 Leggi in italiano</a>
+  <a href="README_it.md"><img src="https://img.shields.io/badge/🇮🇹-Leggi%20in%20italiano-green?style=flat-square" alt="Leggi in italiano"></a>
 </p>
 
 ![Python](https://img.shields.io/badge/Python-3.9%2B-blue?logo=python&logoColor=white)
