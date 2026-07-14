@@ -577,7 +577,8 @@ class TranslatorApp(ctk.CTk):
             messagebox.showinfo("", "Nessuna traduzione da salvare.")
             return
         written = write_tl_files(self.extractor.game_dir, lang_folder, self.items, translations)
-        activator = write_activator(self.extractor.game_dir, lang_folder)
+        splash_src = SCRIPT_DIR / "splash.png"
+        activator = write_activator(self.extractor.game_dir, lang_folder, splash_src)
         msg = self.t("saved").format(len(written), self.extractor.game_dir / "tl" / lang_folder)
         self.log(msg)
         self.log(f"Activator: {activator}")
