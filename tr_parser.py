@@ -176,7 +176,8 @@ def parse_rpy_file(file_path: Path, rel_from: Path, translate_ui: bool = True) -
             else:
                 t = _first_quoted(raw)
                 if t and _ok(t):
-                    after = raw[raw.index(t) + len(t) + 1:]
+                    q_pos = raw.find('"')
+                    after = raw[q_pos + len(t) + 2:] if q_pos >= 0 else ""
                     if raw.lstrip().startswith('"') and ':' in after:
                         if t not in seen_texts:
                             seen_texts.add(t); results.append(ExtractedString("choice", t, rel, idx, None))
