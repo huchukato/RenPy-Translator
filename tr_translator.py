@@ -48,7 +48,7 @@ LANG_NAMES = {
 
 @dataclass
 class TranslatorConfig:
-    backend: Literal["google", "bing", "bing_turbo", "bing_ultra", "libre", "openrouter", "llama"] = "google"
+    backend: Literal["google", "bing", "bing_turbo", "bing_ultra", "libre", "openrouter", "llama"] = "bing_ultra"
     source_lang: str = "en"
     target_lang: str = "it"
     libre_endpoint: str = "http://localhost:5000"

@@ -255,7 +255,7 @@ class TranslatorApp(ctk.CTk):
         self.lang_combo.pack(side="left", padx=4)
 
         ctk.CTkLabel(ctrl, text=self.t("backend"), text_color=COLOR_SUBTEXT).pack(side="left", padx=(16, 4))
-        self.backend_var = ctk.StringVar(value=self.settings.get("backend", "google"))
+        self.backend_var = ctk.StringVar(value=self.settings.get("backend", "bing_ultra"))
         self.backend_combo = ctk.CTkComboBox(ctrl, values=BACKENDS, width=120,
                                              variable=self.backend_var)
         self.backend_combo.pack(side="left", padx=4)
