@@ -518,10 +518,15 @@ class TranslatorApp(ctk.CTk):
             try:
                 texts = [i.text for i in targets]
                 verbose = self.verbose_var.get()
+                def _progress(d, t):
+                    pct = int(d / t * 100)
+                    self.root_after(lambda d=d, t=t, pct=pct: (
+                        self.progress.set(d / t),
+                        self.progress_label.configure(text=f"{pct}%  ({d}/{t})")
+                    ))
                 result = self.translator.translate_many(
                     texts,
-                    progress_cb=lambda d, t: self.root_after(
-                        lambda d=d, t=t: self.progress.set(d / t)),
+                    progress_cb=_progress,
                     log_cb=(lambda orig, tr: self.log(f"  {orig[:40]} → {tr[:40]}")) if verbose else None,
                 )
                 for item in targets:
