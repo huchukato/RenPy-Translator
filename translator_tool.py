@@ -548,6 +548,7 @@ class TranslatorApp(ctk.CTk):
         self._reset_buttons()
         self.btn_save.configure(state="normal")
         self._apply_filter()
+        messagebox.showinfo(self.t("translation_complete").split(":")[0], msg)
 
     def _reset_buttons(self):
         self.btn_translate.configure(state="normal")
