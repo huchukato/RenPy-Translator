@@ -255,14 +255,6 @@ class TranslatorApp(ctk.CTk):
                                              variable=self.backend_var)
         self.backend_combo.pack(side="left", padx=4)
 
-        self.preserve_names_var = ctk.BooleanVar(value=self.settings.get("preserve_names", False))
-        ctk.CTkCheckBox(ctrl, text="Preserve names", variable=self.preserve_names_var,
-                        command=self._on_checkbox).pack(side="left", padx=(16, 4))
-
-        self.translate_ui_var = ctk.BooleanVar(value=self.settings.get("translate_ui", True))
-        ctk.CTkCheckBox(ctrl, text="Translate Menu", variable=self.translate_ui_var,
-                        command=self._on_checkbox).pack(side="left", padx=4)
-
         # Tabs
         self.tabs = ctk.CTkTabview(self, fg_color=COLOR_PANEL)
         self.tabs.pack(fill="both", expand=True, padx=0, pady=(2, 0))
@@ -272,38 +264,25 @@ class TranslatorApp(ctk.CTk):
         self._build_log_tab()
 
         # Bottom buttons
+        # ── Riga comandi ─────────────────────────────────────────────────
         bottom = ctk.CTkFrame(self, fg_color=COLOR_PANEL, height=56)
         bottom.pack(fill="x", pady=(2, 0))
         bottom.pack_propagate(False)
 
-        self.btn_analyze = ctk.CTkButton(bottom, text=self.t("analyze"),
-                                         fg_color=COLOR_BTN_MAIN, width=140, command=self._analyze)
-        self.btn_analyze.pack(side="left", padx=10, pady=10)
-
-        self.btn_translate = ctk.CTkButton(bottom, text=self.t("translate_all"),
-                                           fg_color=COLOR_BTN_ALT, width=140, command=self._translate_all,
-                                           state="disabled")
-        self.btn_translate.pack(side="left", padx=6, pady=10)
-
-        self.btn_translate_sel = ctk.CTkButton(bottom, text=self.t("translate_sel"),
-                                               fg_color=COLOR_BTN_ALT, width=150, command=self._translate_selected,
-                                               state="disabled")
-        self.btn_translate_sel.pack(side="left", padx=6, pady=10)
-
-        self.btn_save = ctk.CTkButton(bottom, text=self.t("save_tl"),
-                                      fg_color="#4f1d96", width=140, command=self._save_tl,
-                                      state="disabled")
-        self.btn_save.pack(side="left", padx=6, pady=10)
-
-        self.btn_export = ctk.CTkButton(bottom, text="Export",
-                                        fg_color="#1a5276", width=110, command=self._export_tl,
-                                        state="disabled")
-        self.btn_export.pack(side="left", padx=6, pady=10)
+        self.btn_start = ctk.CTkButton(bottom, text="▶  Start Translation",
+                                       fg_color="#16a34a", hover_color="#15803d",
+                                       width=200, command=self._start_translation)
+        self.btn_start.pack(side="left", padx=10, pady=10)
 
         self.btn_cancel = ctk.CTkButton(bottom, text=self.t("cancel"),
                                         fg_color=COLOR_BTN_WARN, width=100, command=self._cancel,
                                         state="disabled")
         self.btn_cancel.pack(side="left", padx=6, pady=10)
+
+        self.btn_export = ctk.CTkButton(bottom, text="Export",
+                                        fg_color="#1a5276", width=110, command=self._export_tl,
+                                        state="disabled")
+        self.btn_export.pack(side="left", padx=6, pady=10)
 
         ctk.CTkButton(bottom, text=self.t("settings"), fg_color=COLOR_ACCENT,
                       width=100, command=self._open_settings).pack(side="right", padx=10, pady=10)
@@ -311,6 +290,24 @@ class TranslatorApp(ctk.CTk):
         next_lang = "IT" if self.lang == "en" else "EN"
         ctk.CTkButton(bottom, text=next_lang, fg_color=COLOR_ACCENT,
                       width=50, command=self._toggle_lang).pack(side="right", padx=6, pady=10)
+
+        # ── Riga opzioni ─────────────────────────────────────────────────
+        opts = ctk.CTkFrame(self, fg_color=COLOR_PANEL, height=44)
+        opts.pack(fill="x")
+        opts.pack_propagate(False)
+
+        ctk.CTkLabel(opts, text="Options:", text_color=COLOR_SUBTEXT,
+                     font=ctk.CTkFont(size=11)).pack(side="left", padx=(12, 8), pady=10)
+
+        self.preserve_names_var = ctk.BooleanVar(value=self.settings.get("preserve_names", False))
+        ctk.CTkSwitch(opts, text="Preserve names", variable=self.preserve_names_var,
+                      command=self._on_option_change,
+                      onvalue=True, offvalue=False).pack(side="left", padx=10, pady=8)
+
+        self.translate_ui_var = ctk.BooleanVar(value=self.settings.get("translate_ui", True))
+        ctk.CTkSwitch(opts, text="Translate Menu", variable=self.translate_ui_var,
+                      command=self._on_option_change,
+                      onvalue=True, offvalue=False).pack(side="left", padx=10, pady=8)
 
     def _build_strings_tab(self):
         self.table_frame = ctk.CTkScrollableFrame(self.tab_strings, fg_color=COLOR_BG)
@@ -424,11 +421,100 @@ class TranslatorApp(ctk.CTk):
 
     # ─── Analysis ──────────────────────────────────────────────────────────
 
+    def _start_translation(self):
+        if not self.game_path:
+            messagebox.showerror(self.t("error"), "Seleziona un gioco prima.")
+            return
+        self.btn_start.configure(state="disabled")
+        self.btn_cancel.configure(state="normal")
+        self.btn_export.configure(state="disabled")
+        self.progress.set(0)
+        self.items = []
+        threading.Thread(target=self._start_thread, daemon=True).start()
+
+    def _start_thread(self):
+        try:
+            # Phase 1-3: analisi
+            self.extractor = TRExtractor(self.game_path)
+            self.log("Phase 1: Extracting .rpa files...")
+            self.root_after(lambda: self.progress.set(0.05))
+            self.extractor.extract_rpa_files()
+
+            self.log("Phase 2: Decompiling .rpyc files...")
+            self.root_after(lambda: self.progress.set(0.15))
+            self.extractor.decompile_rpyc_files()
+
+            self.log("Phase 3: Parsing .rpy files...")
+            self.root_after(lambda: self.progress.set(0.25))
+            rpy_files = self.extractor.get_rpy_files()
+            translate_ui = bool(self.translate_ui_var.get())
+            self.character_names = frozenset(extract_character_names(self.extractor.game_dir))
+            self.log(f"Characters found: {', '.join(sorted(self.character_names)[:10])}{'...' if len(self.character_names) > 10 else ''}")
+            items = []
+            seen_global: set[str] = set()
+            for f in rpy_files:
+                for item in parse_rpy_file(f, self.extractor.game_dir, translate_ui):
+                    if item.text in seen_global:
+                        continue
+                    if self.character_names and item.text in self.character_names:
+                        continue
+                    seen_global.add(item.text)
+                    items.append(item)
+            self.items = items
+            self.log(self.t("analysis_complete").format(len(items), len(rpy_files)))
+            self.root_after(lambda: self._apply_filter())
+
+            # Phase 4: traduzione
+            self.log("Phase 4: Translating...")
+            cfg = self._make_config()
+            self.translator = Translator(cfg)
+            texts = [i.text for i in self.items]
+            verbose = self.verbose_var.get()
+            def _progress(d, t):
+                frac = 0.25 + (d / t) * 0.65 if t else 0.25
+                self.root_after(lambda d=d, t=t, frac=frac: (
+                    self.progress.set(frac),
+                    self.progress_label.configure(text=f"{int(frac*100)}%  ({d}/{t})")
+                ))
+            result = self.translator.translate_many(
+                texts,
+                progress_cb=_progress,
+                log_cb=(lambda orig, tr: self.log(f"  {orig[:40]} → {tr[:40]}")) if verbose else None,
+            )
+            for item in self.items:
+                item.translated = result.get(item.text, "")
+            done = sum(1 for i in self.items if i.translated)
+            self.log(self.t("translation_complete").format(done, len(self.items)))
+
+            # Phase 5: salvataggio
+            self.log("Phase 5: Saving TL files...")
+            lang_folder = self.lang_var.get().lower()
+            translations = {i.text: i.translated for i in self.items if i.translated}
+            written = write_tl_files(self.extractor.game_dir, lang_folder, self.items, translations)
+            splash_src = SCRIPT_DIR / "splash.png"
+            activator = write_activator(self.extractor.game_dir, lang_folder, splash_src)
+            save_msg = self.t("saved").format(len(written), self.extractor.game_dir / "tl" / lang_folder)
+            self.log(save_msg)
+            self.root_after(lambda: self._on_start_done(save_msg))
+        except Exception as e:
+            err = str(e)
+            self.log(f"Error: {err}")
+            self.root_after(lambda: messagebox.showerror(self.t("error"), err))
+            self.root_after(lambda: self._reset_buttons())
+
+    def _on_start_done(self, msg):
+        self.progress.set(1.0)
+        self.progress_label.configure(text=msg)
+        self._reset_buttons()
+        self.btn_export.configure(state="normal")
+        self._apply_filter()
+        self.update_idletasks()
+        self.after(100, lambda: messagebox.showinfo("Done", msg))
+
     def _analyze(self):
         if not self.game_path:
             messagebox.showerror(self.t("error"), "Seleziona un gioco prima.")
             return
-        self.btn_analyze.configure(state="disabled")
         self.btn_cancel.configure(state="normal")
         self.progress.set(0)
         self.items = []
@@ -471,28 +557,20 @@ class TranslatorApp(ctk.CTk):
             err = str(e)
             self.log(f"Error: {err}")
             self.root_after(lambda: messagebox.showerror(self.t("error"), err))
-            self.root_after(lambda: self.btn_analyze.configure(state="normal"))
+            self.root_after(lambda: self._reset_buttons())
 
     def _on_analysis_done(self, msg):
         self.progress.set(1.0)
         self.progress_label.configure(text=msg)
-        self.btn_analyze.configure(state="normal")
-        self.btn_translate.configure(state="normal")
-        self.btn_translate_sel.configure(state="normal")
         self.btn_cancel.configure(state="disabled")
         self._apply_filter()
 
     # ─── Translation ───────────────────────────────────────────────────────
 
-    def _on_checkbox(self):
-        prev_ui = self.settings.get("translate_ui", True)
+    def _on_option_change(self):
         self.settings["preserve_names"] = bool(self.preserve_names_var.get())
         self.settings["translate_ui"] = bool(self.translate_ui_var.get())
         self._save_settings()
-        if self.items and self.settings["translate_ui"] != prev_ui:
-            self.items = []
-            self._refresh_table()
-            self.log("⚠ Translate UI changed — re-run analysis to apply.")
 
     def _make_config(self) -> TranslatorConfig:
         lang_name = self.lang_var.get()
@@ -524,8 +602,6 @@ class TranslatorApp(ctk.CTk):
             return
         cfg = self._make_config()
         self.translator = Translator(cfg)
-        self.btn_translate.configure(state="disabled")
-        self.btn_translate_sel.configure(state="disabled")
         self.btn_cancel.configure(state="normal")
         self.progress.set(0)
 
@@ -567,15 +643,13 @@ class TranslatorApp(ctk.CTk):
         self.progress.set(1.0)
         self.progress_label.configure(text=msg)
         self._reset_buttons()
-        self.btn_save.configure(state="normal")
         self.btn_export.configure(state="normal")
         self._apply_filter()
         self.update_idletasks()
         self.after(100, lambda: messagebox.showinfo(self.t("translation_complete").split(":")[0], msg))
 
     def _reset_buttons(self):
-        self.btn_translate.configure(state="normal")
-        self.btn_translate_sel.configure(state="normal")
+        self.btn_start.configure(state="normal")
         self.btn_cancel.configure(state="disabled")
 
     def _cancel(self):
