@@ -55,10 +55,9 @@ Dependencies are installed automatically via `uv` on first launch.
 ## 🔧 Workflow
 
 1. **Select Game** — `.app` (macOS) or game folder (Windows/Linux)
-2. **Analyze Game** — extracts `.rpa`, decompiles `.rpyc`, scans all `.rpy` scripts
-3. **Choose target language and backend**
-4. **Translate All** — translates all strings in the background with live % progress
-5. **Save TL Files** — writes `game/tl/<lang>/` directly in the game directory
+2. **Choose target language and backend**
+3. **Click Start Translation** — automatically extracts, decompiles, parses, translates and saves `game/tl/<lang>/` with live progress
+4. **Export** — packages the translation into a distributable folder named `<GameName>-<lang>/`
 
 ---
 
@@ -81,7 +80,7 @@ Dependencies are installed automatically via `uv` on first launch.
 | Option | Description |
 |---|---|
 | **Preserve names** | Skips single capitalized words (character names) |
-| **Translate UI** | Also translates menu choices and UI text elements |
+| **Translate Menu** | Also translates menu choices and UI text elements |
 | **Verbose log** | Logs every translated string (off by default for performance) |
 
 ---

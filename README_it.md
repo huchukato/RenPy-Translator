@@ -15,6 +15,10 @@
 
 > Uno strumento GUI universale per tradurre automaticamente i giochi Ren'Py — estrae gli script, rileva dialoghi e narrazione, e scrive i file di traduzione compatibili con Ren'Py (`tl/<lingua>/`).
 
+<p align="center">
+  <img src="translator-gui.png" alt="Ren'Py Translator GUI" width="800">
+</p>
+
 ---
 
 ## ✨ Funzionalità
@@ -51,10 +55,9 @@ Le dipendenze vengono installate automaticamente tramite `uv` al primo avvio.
 ## 🔧 Flusso di lavoro
 
 1. **Seleziona il gioco** — `.app` (macOS) o cartella del gioco (Windows/Linux)
-2. **Analizza il gioco** — estrae `.rpa`, decompila `.rpyc`, scansiona tutti i file `.rpy`
-3. **Scegli lingua target e backend**
-4. **Traduci tutto** — traduce tutte le stringhe in background con avanzamento % in tempo reale
-5. **Salva file TL** — scrive `game/tl/<lingua>/` direttamente nella cartella del gioco
+2. **Scegli lingua target e backend**
+3. **Clicca Start Translation** — estrae, decompila, analizza, traduce e salva `game/tl/<lingua>/` automaticamente con avanzamento in tempo reale
+4. **Export** — crea una cartella distribuibile chiamata `<NomeGioco>-<lingua>/`
 
 ---
 
@@ -77,7 +80,7 @@ Le dipendenze vengono installate automaticamente tramite `uv` al primo avvio.
 | Opzione | Descrizione |
 |---|---|
 | **Preserve names** | Salta le parole singole in maiuscolo (nomi dei personaggi) |
-| **Translate UI** | Traduce anche le scelte di menu e i testi UI |
+| **Translate Menu** | Traduce anche le scelte di menu e i testi UI |
 | **Verbose log** | Logga ogni stringa tradotta (disabilitato di default per le performance) |
 
 ---
