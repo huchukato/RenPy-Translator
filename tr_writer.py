@@ -34,8 +34,6 @@ def write_activator(game_dir: Path, lang_code: str, splash_src: Path | None = No
 image _rpt_splash = "renpy_translator_splash.png"
 
 label before_main_menu:
-    if persistent._rpt_splash_shown:
-        return
     scene black
     with Pause(0.5)
     show _rpt_splash at truecenter
@@ -45,7 +43,6 @@ label before_main_menu:
     with dissolve
     scene black
     with Pause(0.3)
-    $ persistent._rpt_splash_shown = True
     return
 '''
     content = f'''\
@@ -109,6 +106,25 @@ init 9999 python:
             return (_rpt_old_menu(s) if _rpt_old_menu else s)
         _rpt_menu_filter._is_rpt = True
         config.say_menu_text_filter = _rpt_menu_filter
+
+    try:
+        import os as _rpt_os, re as _rpt_re2
+        _rpt_tl_dir = _rpt_os.path.join(renpy.config.gamedir, "tl", _rpt_lang)
+        _rpt_block_re = _rpt_re2.compile(
+            r'translate\\s+\\S+\\s+rpt_menu_\\d+:\\s*\\n\\s*#\\s*"([^"]+)"\\s*\\n\\s*"([^"]+)"',
+            _rpt_re2.MULTILINE
+        )
+        for _fn in _rpt_os.listdir(_rpt_tl_dir):
+            if not _fn.endswith(".rpy"):
+                continue
+            try:
+                _txt = open(_rpt_os.path.join(_rpt_tl_dir, _fn), encoding="utf-8").read()
+                for _orig, _tr in _rpt_block_re.findall(_txt):
+                    _rpt_dict[_orig] = _tr
+            except Exception:
+                pass
+    except Exception:
+        pass
 {splash_block}'''
     out.write_text(content, encoding="utf-8")
     return out
