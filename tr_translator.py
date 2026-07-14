@@ -191,7 +191,7 @@ class Translator:
         "en-US,en;q=0.9", "en-US,en;q=0.9,es;q=0.8",
         "en-GB,en;q=0.9", "en-CA,en-US;q=0.7,en;q=0.3",
     ]
-    _BING_CHAR_LIMIT = 9000  # max caratteri per request (Bing usa ~10054, usiamo 9000 per sicurezza)
+    _BING_CHAR_LIMIT = 900   # limite reale API pubblica Bing (~1000 char, usiamo 900 per sicurezza)
     _BING_SEP = "\n<<<SEP>>>\n"  # separatore univoco — Bing non traduce i token <<<>>> 
 
     def _bing_make_session(self, base_url: str = "https://www.bing.com", idx: int = 0) -> tuple:
@@ -229,8 +229,8 @@ class Translator:
         cur_parts = []
         cur_len = 0
         for i, text in enumerate(texts):
-            t = text.replace("|||SEP|||", "[SEP]")  # sanifica eventuale collisione (molto rara)
-            needed = len(t) + (1 if cur_parts else 0)  # +1 per il \n
+            t = text.replace("<<<SEP>>>", "[SEP]")  # sanifica eventuale collisione (molto rara)
+            needed = len(t) + (len(self._BING_SEP) if cur_parts else 0)
             if cur_parts and cur_len + needed > self._BING_CHAR_LIMIT:
                 chunks.append((cur_indices, self._BING_SEP.join(cur_parts)))
                 cur_indices = []; cur_parts = []; cur_len = 0
