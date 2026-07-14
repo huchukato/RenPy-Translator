@@ -152,16 +152,28 @@ class Translator:
 
     # ── Bing helpers ──────────────────────────────────────────────────────────
 
-    def _bing_make_session(self, base_url: str = "https://www.bing.com") -> tuple:
-        """
-        Crea una sessione requests con IG + AbusePreventionHelper token.
-        Restituisce (session, ig, key, token).
-        """
+    _BING_USER_AGENTS = [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
+    ]
+    _BING_ACCEPT_LANGS = [
+        "en-US,en;q=0.9", "en-US,en;q=0.9,es;q=0.8",
+        "en-GB,en;q=0.9", "en-CA,en-US;q=0.7,en;q=0.3",
+    ]
+    _BING_CHAR_LIMIT = 9000  # max caratteri per request (Bing usa ~10054, usiamo 9000 per sicurezza)
+    _BING_SEP = "\n"          # separatore tra stringhe nello stesso chunk
+
+    def _bing_make_session(self, base_url: str = "https://www.bing.com", idx: int = 0) -> tuple:
+        """Crea sessione con IG + AbusePreventionHelper. Ritorna (session, ig, key, token)."""
+        import random
         session = requests.Session()
         session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                          "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept-Language": "en-US,en;q=0.9",
+            "User-Agent": self._BING_USER_AGENTS[idx % len(self._BING_USER_AGENTS)],
+            "Accept-Language": self._BING_ACCEPT_LANGS[idx % len(self._BING_ACCEPT_LANGS)],
         })
         ig_val = ""; key_val = ""; token_val = ""
         try:
@@ -180,87 +192,121 @@ class Translator:
             pass
         return session, ig_val, key_val, token_val
 
-    def _bing_translate_one(self, session, text: str, src: str, tgt: str,
-                            ig: str, key: str, token: str,
-                            base_url: str = "https://www.bing.com") -> str:
+    def _bing_split_chunks(self, texts: list[str]) -> list[tuple[list[int], str]]:
+        """
+        Raggruppa texts in chunk da max _BING_CHAR_LIMIT caratteri.
+        Ritorna lista di (indici, testo_concatenato).
+        """
+        chunks = []
+        cur_indices = []
+        cur_parts = []
+        cur_len = 0
+        for i, text in enumerate(texts):
+            t = text.replace(self._BING_SEP, " ")  # evita collisioni col separatore
+            needed = len(t) + (1 if cur_parts else 0)  # +1 per il \n
+            if cur_parts and cur_len + needed > self._BING_CHAR_LIMIT:
+                chunks.append((cur_indices, self._BING_SEP.join(cur_parts)))
+                cur_indices = []; cur_parts = []; cur_len = 0
+            cur_indices.append(i)
+            cur_parts.append(t)
+            cur_len += needed
+        if cur_parts:
+            chunks.append((cur_indices, self._BING_SEP.join(cur_parts)))
+        return chunks
+
+    def _bing_translate_chunk(self, session, chunk_text: str, src: str, tgt: str,
+                              ig: str, key: str, token: str,
+                              base_url: str = "https://www.bing.com") -> list[str]:
+        """Traduce un intero chunk (più stringhe concatenate) in una sola request."""
         r = session.post(
             f"{base_url}/ttranslatev3",
-            params={"isVertical": "1", "IG": ig, "IID": "translator.5028"},
+            params={"isVertical": "1", "IG": ig, "IID": "translator.5024"},
             data={
                 "fromLang": src,
                 "to": tgt,
-                "text": text,
+                "text": chunk_text,
                 "token": token,
                 "key": key,
             },
             timeout=self.cfg.timeout_s,
         )
-        data = r.json()
-        return data[0]["translations"][0]["text"]
+        translated = r.json()[0]["translations"][0]["text"]
+        return translated.split(self._BING_SEP)
 
     def _bing(self, texts: list[str]) -> list[str]:
-        """Bing standard — una sessione, sequenziale."""
+        """Bing standard — una sessione, chunk multi-stringa."""
         src, tgt = self.cfg.source_lang, self.cfg.target_lang
         session, ig, key, token = self._bing_make_session()
-        results = []
-        for text in texts:
+        results = list(texts)
+        for indices, chunk_text in self._bing_split_chunks(texts):
             try:
-                results.append(self._bing_translate_one(session, text, src, tgt, ig, key, token))
+                parts = self._bing_translate_chunk(session, chunk_text, src, tgt, ig, key, token)
+                for i, p in zip(indices, parts):
+                    results[i] = p.strip()
             except Exception:
-                results.append(text)
+                pass  # lascia originale
         return results
 
     def _bing_turbo(self, texts: list[str]) -> list[str]:
-        """Bing Turbo — pool di 3 sessioni parallele con ThreadPoolExecutor."""
+        """Bing Turbo — 3 sessioni parallele, chunk multi-stringa per sessione."""
         from concurrent.futures import ThreadPoolExecutor, as_completed
         src, tgt = self.cfg.source_lang, self.cfg.target_lang
-        n_sessions = 3
-        sessions = [self._bing_make_session() for _ in range(n_sessions)]
+        n = 3
+        sessions = [self._bing_make_session(idx=i) for i in range(n)]
+        chunks = self._bing_split_chunks(texts)
+        results = list(texts)
 
-        def translate_one(idx_text):
-            idx, text = idx_text
-            sess, ig, key, token = sessions[idx % n_sessions]
+        def do_chunk(chunk_idx_data):
+            chunk_idx, (indices, chunk_text) = chunk_idx_data
+            sess, ig, key, token = sessions[chunk_idx % n]
             try:
-                return idx, self._bing_translate_one(sess, text, src, tgt, ig, key, token)
+                parts = self._bing_translate_chunk(sess, chunk_text, src, tgt, ig, key, token)
+                return indices, parts
             except Exception:
-                return idx, text
+                return indices, None
 
-        results = [None] * len(texts)
-        with ThreadPoolExecutor(max_workers=n_sessions) as ex:
-            futures = {ex.submit(translate_one, (i, t)): i for i, t in enumerate(texts)}
+        with ThreadPoolExecutor(max_workers=n) as ex:
+            futures = [ex.submit(do_chunk, (i, c)) for i, c in enumerate(chunks)]
             for f in as_completed(futures):
-                idx, tr = f.result()
-                results[idx] = tr
-        return [r if r is not None else t for r, t in zip(results, texts)]
+                indices, parts = f.result()
+                if parts:
+                    for i, p in zip(indices, parts):
+                        results[i] = p.strip()
+        return results
 
     def _bing_ultra(self, texts: list[str]) -> list[str]:
-        """Bing Ultra — pool di 6 sessioni (3 www + 3 cn.bing.com) parallele."""
+        """Bing Ultra — 6 sessioni parallele (3 www + 3 cn.bing.com), chunk multi-stringa."""
         from concurrent.futures import ThreadPoolExecutor, as_completed
         src, tgt = self.cfg.source_lang, self.cfg.target_lang
         bases = ["https://www.bing.com"] * 3 + ["https://cn.bing.com"] * 3
-        sessions = [self._bing_make_session(b) for b in bases]
+        sessions = [self._bing_make_session(base_url=b, idx=i) for i, b in enumerate(bases)]
+        chunks = self._bing_split_chunks(texts)
+        results = list(texts)
 
-        def translate_one(idx_text):
-            idx, text = idx_text
-            sess, ig, key, token = sessions[idx % len(sessions)]
-            base = bases[idx % len(bases)]
+        def do_chunk(chunk_idx_data):
+            chunk_idx, (indices, chunk_text) = chunk_idx_data
+            sess, ig, key, token = sessions[chunk_idx % len(sessions)]
+            base = bases[chunk_idx % len(bases)]
             try:
-                return idx, self._bing_translate_one(sess, text, src, tgt, ig, key, token, base)
+                parts = self._bing_translate_chunk(sess, chunk_text, src, tgt, ig, key, token, base)
+                return indices, parts
             except Exception:
-                # fallback al primo
+                # fallback www sessione 0
                 try:
                     s, g, k, tk = sessions[0]
-                    return idx, self._bing_translate_one(s, text, src, tgt, g, k, tk)
+                    parts = self._bing_translate_chunk(s, chunk_text, src, tgt, g, k, tk)
+                    return indices, parts
                 except Exception:
-                    return idx, text
+                    return indices, None
 
-        results = [None] * len(texts)
         with ThreadPoolExecutor(max_workers=6) as ex:
-            futures = {ex.submit(translate_one, (i, t)): i for i, t in enumerate(texts)}
+            futures = [ex.submit(do_chunk, (i, c)) for i, c in enumerate(chunks)]
             for f in as_completed(futures):
-                idx, tr = f.result()
-                results[idx] = tr
-        return [r if r is not None else t for r, t in zip(results, texts)]
+                indices, parts = f.result()
+                if parts:
+                    for i, p in zip(indices, parts):
+                        results[i] = p.strip()
+        return results
 
     def _libre(self, texts: list[str]) -> list[str]:
         ep = self.cfg.libre_endpoint.rstrip("/") + "/translate"
