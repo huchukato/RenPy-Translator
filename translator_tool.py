@@ -448,8 +448,15 @@ class TranslatorApp(ctk.CTk):
             self.character_names = frozenset(extract_character_names(self.extractor.game_dir))
             self.log(f"Characters found: {', '.join(sorted(self.character_names)[:10])}{'...' if len(self.character_names) > 10 else ''}")
             items = []
+            seen_global: set[str] = set()
             for f in rpy_files:
-                items.extend(parse_rpy_file(f, self.extractor.game_dir, translate_menu))
+                for item in parse_rpy_file(f, self.extractor.game_dir, translate_menu):
+                    if item.text in seen_global:
+                        continue
+                    if self.character_names and item.text in self.character_names:
+                        continue
+                    seen_global.add(item.text)
+                    items.append(item)
 
             self.items = items
             msg = self.t("analysis_complete").format(len(items), len(rpy_files))
