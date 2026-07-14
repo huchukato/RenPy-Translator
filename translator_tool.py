@@ -102,14 +102,14 @@ UI_TEXTS = {
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
-COLOR_BG       = "#1a1a2e"
-COLOR_PANEL    = "#16213e"
-COLOR_ACCENT   = "#0f3460"
-COLOR_BTN_MAIN = "#00b894"
-COLOR_BTN_ALT  = "#0984e3"
-COLOR_BTN_WARN = "#d63031"
-COLOR_TEXT     = "#ffffff"
-COLOR_SUBTEXT  = "#aaaaaa"
+COLOR_BG       = "#1a1025"
+COLOR_PANEL    = "#231535"
+COLOR_ACCENT   = "#3d2060"
+COLOR_BTN_MAIN = "#7c3aed"
+COLOR_BTN_ALT  = "#06b6d4"
+COLOR_BTN_WARN = "#e11d48"
+COLOR_TEXT     = "#f0e6ff"
+COLOR_SUBTEXT  = "#a78bfa"
 
 
 # ─── Settings Dialog ─────────────────────────────────────────────────────────
@@ -293,7 +293,7 @@ class TranslatorApp(ctk.CTk):
         self.btn_translate_sel.pack(side="left", padx=6, pady=10)
 
         self.btn_save = ctk.CTkButton(bottom, text=self.t("save_tl"),
-                                      fg_color="#6c5ce7", width=140, command=self._save_tl,
+                                      fg_color="#4f1d96", width=140, command=self._save_tl,
                                       state="disabled")
         self.btn_save.pack(side="left", padx=6, pady=10)
 
