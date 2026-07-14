@@ -13,7 +13,7 @@ from tkinter import filedialog, messagebox
 from tr_extractor import TRExtractor
 from tr_parser import parse_rpy_file, ExtractedString
 from tr_translator import Translator, TranslatorConfig, TranslationError, OPENROUTER_FREE_MODELS, LANG_NAMES
-from tr_writer import write_tl_files
+from tr_writer import write_tl_files, write_activator
 
 try:
     from PIL import Image, ImageTk
@@ -570,8 +570,10 @@ class TranslatorApp(ctk.CTk):
             messagebox.showinfo("", "Nessuna traduzione da salvare.")
             return
         written = write_tl_files(self.extractor.game_dir, lang_folder, self.items, translations)
+        activator = write_activator(self.extractor.game_dir, lang_folder)
         msg = self.t("saved").format(len(written), self.extractor.game_dir / "tl" / lang_folder)
         self.log(msg)
+        self.log(f"Activator: {activator}")
         messagebox.showinfo("", msg)
 
     # ─── Settings ──────────────────────────────────────────────────────────
