@@ -124,7 +124,7 @@ class SettingsDialog(ctk.CTkToplevel):
         super().__init__(parent)
         self.parent = parent
         self.title("Settings")
-        self.geometry("500x520")
+        self.geometry("500x460")
         self.resizable(False, False)
         self.grab_set()
         self._build()
@@ -148,10 +148,6 @@ class SettingsDialog(ctk.CTkToplevel):
         self.llama_file = ctk.CTkEntry(self, width=460)
         self.llama_file.pack(**pad)
 
-        ctk.CTkLabel(self, text="Translation profile:").pack(anchor="w", **pad)
-        self.translation_profile = ctk.CTkComboBox(self, values=["Safe", "Balanced", "Fast"], width=460)
-        self.translation_profile.pack(**pad)
-
         ctk.CTkButton(self, text="Save", command=self._save,
                       fg_color=COLOR_BTN_MAIN).pack(pady=12)
 
@@ -161,7 +157,6 @@ class SettingsDialog(ctk.CTkToplevel):
         self.or_model.set(s.get("openrouter_model", OPENROUTER_FREE_MODELS[0]))
         self.llama_repo.insert(0, s.get("llama_model_repo", "llmfan46/gemma-4-E4B-it-ultra-uncensored-heretic-GGUF"))
         self.llama_file.insert(0, s.get("llama_model_file", ""))
-        self.translation_profile.set(s.get("translation_profile", "Balanced"))
 
     def _save(self):
         self.parent.settings.update({
@@ -169,7 +164,6 @@ class SettingsDialog(ctk.CTkToplevel):
             "openrouter_model": self.or_model.get(),
             "llama_model_repo": self.llama_repo.get().strip(),
             "llama_model_file": self.llama_file.get().strip(),
-            "translation_profile": self.translation_profile.get(),
         })
         self.parent._save_settings()
         self.destroy()
@@ -268,6 +262,12 @@ class TranslatorApp(ctk.CTk):
         self.backend_combo = ctk.CTkComboBox(ctrl, values=list(BACKENDS), width=140,
                                              variable=self.backend_var, command=self._on_backend_change)
         self.backend_combo.pack(side="left", padx=4)
+
+        ctk.CTkLabel(ctrl, text="Profile:", text_color=COLOR_SUBTEXT).pack(side="left", padx=(12, 4))
+        self.profile_var = ctk.StringVar(value=self.settings.get("translation_profile", "Balanced"))
+        self.profile_combo = ctk.CTkComboBox(ctrl, values=["Safe", "Balanced", "Fast"], width=105,
+                                             variable=self.profile_var, command=self._on_profile_change)
+        self.profile_combo.pack(side="left", padx=4)
 
         # Tabs
         self.tabs = ctk.CTkTabview(self, fg_color=COLOR_PANEL)
@@ -594,6 +594,10 @@ class TranslatorApp(ctk.CTk):
         self.settings["target_lang"] = language
         self._save_settings()
 
+    def _on_profile_change(self, profile: str):
+        self.settings["translation_profile"] = profile
+        self._save_settings()
+
     def _on_verbose_change(self):
         self.settings["verbose"] = bool(self.verbose_var.get())
         self._save_settings()
@@ -616,7 +620,7 @@ class TranslatorApp(ctk.CTk):
             openrouter_model=s.get("openrouter_model", OPENROUTER_FREE_MODELS[0]),
             llama_model_repo=s.get("llama_model_repo", ""),
             llama_model_file=s.get("llama_model_file", ""),
-            translation_profile=s.get("translation_profile", "Balanced"),
+            translation_profile=self.profile_var.get(),
             preserve_names=bool(self.preserve_names_var.get()),
             translate_menu=bool(self.translate_ui_var.get()),  # usato da TranslatorConfig
             character_names=self.character_names,
