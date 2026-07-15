@@ -76,6 +76,12 @@ class Translator:
         self.cfg = cfg
         self.cache: dict[str, str] = {}
         self.cancelled = False
+        self._mirror_health: dict[str, dict] = {
+            ep: {"fails": 0, "banned_until": 0.0} for ep in self._GOOGLE_MIRRORS
+        }
+        self._gt_global_cooldown: float = 0.0
+        self._gt_consecutive_429: int = 0
+        self._gt_lock = None  # inizializzato lazy in _google_turbo
 
     def cancel(self):
         self.cancelled = True
@@ -144,9 +150,25 @@ class Translator:
         raise TranslationError(f"Backend sconosciuto: {b}")
 
     _GOOGLE_CHAR_LIMIT = 5000       # deep_translator limita a 5000 char per chiamata
-    _GOOGLE_TURBO_CHAR_LIMIT = 950  # limite sicuro per l'API pubblica diretta di Google
-    _GOOGLE_TURBO_WORKERS = 6       # sessioni parallele
+    _GOOGLE_TURBO_CHAR_LIMIT = 950  # limite sicuro per l'API mobile di Google
+    _GOOGLE_TURBO_WORKERS = 6       # worker paralleli
     _GOOGLE_TURBO_SEP = "\n<<<SEP>>>\n"  # separatore — Google non traduce <<<>>>
+    _GOOGLE_MIRRORS = [
+        "https://translate.google.com/m",
+        "https://translate.google.de/m",
+        "https://translate.google.fr/m",
+        "https://translate.google.es/m",
+        "https://translate.google.it/m",
+        "https://translate.google.co.uk/m",
+        "https://translate.google.com.tr/m",
+        "https://translate.google.ru/m",
+        "https://translate.google.co.jp/m",
+        "https://translate.google.ca/m",
+        "https://translate.google.com.au/m",
+        "https://translate.google.pl/m",
+    ]
+    _MIRROR_BAN_TIME = 120    # secondi di ban dopo troppi errori
+    _MIRROR_MAX_FAILS = 5     # errori prima del ban
 
     def _google(self, texts: list[str], progress_cb=None, done_offset=0, total=0) -> list[str]:
         if not GOOGLE_OK:
@@ -183,50 +205,101 @@ class Translator:
                 progress_cb(min(done, total), total)
         return results
 
-    def _google_turbo_session(self, idx: int = 0) -> requests.Session:
-        """Crea una sessione HTTP con User-Agent variato per Google Turbo."""
-        import random
-        ua_list = [
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0",
-        ]
-        s = requests.Session()
-        s.headers.update({
-            "User-Agent": ua_list[idx % len(ua_list)],
-            "Accept-Language": "en-US,en;q=0.9",
-            "Referer": "https://translate.google.com/",
-        })
-        return s
+    _GT_UA_LIST = [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0",
+    ]
 
-    def _google_turbo_translate_chunk(self, session: requests.Session, chunk_text: str, src: str, tgt: str) -> list[str]:
-        """Traduce un chunk multi-stringa con l'API pubblica di Google. Ritorna lista di stringhe."""
+    def _gt_next_mirror(self) -> str:
+        """Ritorna il prossimo mirror disponibile; aspetta se tutti sono in cooldown."""
+        import time
+        now = time.time()
+        if now < self._gt_global_cooldown:
+            time.sleep(min(self._gt_global_cooldown - now, 5.0))
+        available = [ep for ep, h in self._mirror_health.items() if time.time() >= h["banned_until"]]
+        if not available:
+            earliest = min(h["banned_until"] for h in self._mirror_health.values())
+            wait = min(earliest - time.time(), 10.0)
+            if wait > 0:
+                time.sleep(wait)
+            for h in self._mirror_health.values():
+                h["fails"] = 0; h["banned_until"] = 0.0
+            available = list(self._mirror_health.keys())
+        return available[0]
+
+    def _gt_mark_ok(self, mirror: str):
+        self._gt_consecutive_429 = max(0, self._gt_consecutive_429 - 1)
+        if mirror in self._mirror_health:
+            self._mirror_health[mirror]["fails"] = 0
+
+    def _gt_mark_fail(self, mirror: str, is_429: bool = False):
+        import time
+        if is_429:
+            self._gt_consecutive_429 += 1
+            wait = min(3.0 * (2 ** (self._gt_consecutive_429 - 1)), 30.0)
+            self._gt_global_cooldown = time.time() + wait
+        if mirror in self._mirror_health:
+            h = self._mirror_health[mirror]
+            h["fails"] += 1
+            if h["fails"] >= self._MIRROR_MAX_FAILS:
+                h["banned_until"] = time.time() + self._MIRROR_BAN_TIME
+
+    def _gt_translate_chunk(self, chunk_text: str, src: str, tgt: str) -> list[str]:
+        """Traduce un chunk multi-stringa via mirror mobile di Google. Ritorna lista di stringhe."""
+        import time
+        from urllib.parse import quote
         sep = self._GOOGLE_TURBO_SEP
-        r = session.get(
-            "https://translate.googleapis.com/translate_a/single",
-            params={"client": "gtx", "sl": src, "tl": tgt, "dt": "t", "q": chunk_text},
-            timeout=self.cfg.timeout_s,
-        )
-        data = r.json()
-        translated = "".join(part[0] for part in data[0] if part[0])
-        parts = translated.split(sep)
-        originals = chunk_text.split(sep)
-        # allinea al numero di originali (Google può unire/spezzare parti)
-        if len(parts) == len(originals):
-            return parts
-        # fallback: ritorna il testo unico come prima stringa, il resto invariato
-        return [translated] + [""] * (len(originals) - 1)
+        mirror = self._gt_next_mirror()
+        for attempt in range(3):
+            try:
+                ua = self._GT_UA_LIST[attempt % len(self._GT_UA_LIST)]
+                url = f"{mirror}?sl={src}&tl={tgt}&q={quote(chunk_text)}"
+                r = requests.get(url, headers={"User-Agent": ua}, timeout=self.cfg.timeout_s)
+                is_429 = r.status_code == 429
+                r.raise_for_status()
+                # scraping HTML: classe result-container (endpoint /m)
+                m = re.search(r'class="(?:result-container|t0|gt-cd)"[^>]*>(.*?)</div>', r.text, re.DOTALL)
+                if not m:
+                    self._gt_mark_fail(mirror)
+                    mirror = self._gt_next_mirror()
+                    continue
+                translated = re.sub(r'<[^>]+>', '', m.group(1)).strip()
+                if not translated:
+                    self._gt_mark_fail(mirror)
+                    mirror = self._gt_next_mirror()
+                    continue
+                self._gt_mark_ok(mirror)
+                import html as _html
+                translated = _html.unescape(translated)
+                parts = translated.split(sep)
+                originals = chunk_text.split(sep)
+                if len(parts) == len(originals):
+                    return parts
+                return [translated] + [""] * (len(originals) - 1)
+            except requests.exceptions.HTTPError as e:
+                is_429 = e.response is not None and e.response.status_code == 429
+                self._gt_mark_fail(mirror, is_429=is_429)
+                mirror = self._gt_next_mirror()
+                time.sleep((1.5 ** attempt) * 0.5)
+            except Exception:
+                self._gt_mark_fail(mirror)
+                mirror = self._gt_next_mirror()
+                time.sleep((1.5 ** attempt) * 0.3)
+        return [""] * len(chunk_text.split(sep))
 
     def _google_turbo(self, texts: list[str], progress_cb=None, done_offset=0, total=0) -> list[str]:
-        """Google Turbo — 6 sessioni parallele, chunk 950 chars, API pubblica diretta."""
+        """Google Turbo — 12 mirror paralleli, chunk 950 chars, health tracking, backoff 429."""
         from concurrent.futures import ThreadPoolExecutor, as_completed
         import threading
         src, tgt = self.cfg.source_lang, self.cfg.target_lang
         sep = self._GOOGLE_TURBO_SEP
         lim = self._GOOGLE_TURBO_CHAR_LIMIT
+        if self._gt_lock is None:
+            self._gt_lock = threading.Lock()
 
         # Build chunks
         chunks: list[tuple[list[int], str]] = []
@@ -241,29 +314,19 @@ class Translator:
         if cur_parts:
             chunks.append((cur_idx, sep.join(cur_parts)))
 
-        sessions = [self._google_turbo_session(i) for i in range(self._GOOGLE_TURBO_WORKERS)]
         results = list(texts)
         done_count = [done_offset]
-        lock = threading.Lock()
 
         def do_chunk(chunk_idx_data):
-            chunk_idx, (indices, chunk_text) = chunk_idx_data
-            sess = sessions[chunk_idx % len(sessions)]
-            try:
-                parts = self._google_turbo_translate_chunk(sess, chunk_text, src, tgt)
-                return indices, parts
-            except Exception:
-                # fallback stringa per stringa su sessione diversa
-                fallback_sess = sessions[(chunk_idx + 1) % len(sessions)]
+            _, (indices, chunk_text) = chunk_idx_data
+            parts = self._gt_translate_chunk(chunk_text, src, tgt)
+            if not any(parts):  # tutti vuoti — fallback stringa per stringa
                 originals = chunk_text.split(sep)
                 parts = []
                 for orig in originals:
-                    try:
-                        p = self._google_turbo_translate_chunk(fallback_sess, orig, src, tgt)
-                        parts.append(p[0] if p else orig)
-                    except Exception:
-                        parts.append(orig)
-                return indices, parts
+                    fb = self._gt_translate_chunk(orig, src, tgt)
+                    parts.append(fb[0] if fb and fb[0] else orig)
+            return indices, parts
 
         with ThreadPoolExecutor(max_workers=self._GOOGLE_TURBO_WORKERS) as ex:
             futures = {ex.submit(do_chunk, item): item for item in enumerate(chunks)}
@@ -276,7 +339,7 @@ class Translator:
                     for i, p in zip(indices, parts):
                         if p:
                             results[i] = p
-                    with lock:
+                    with self._gt_lock:
                         done_count[0] += len(indices)
                         if progress_cb and total:
                             progress_cb(min(done_count[0], total), total)
