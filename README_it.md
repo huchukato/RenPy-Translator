@@ -66,7 +66,7 @@ Le dipendenze vengono installate automaticamente tramite `uv` al primo avvio.
 | Backend | Velocità | Requisiti |
 |---|---|---|
 | **google** | Medio | nessuno (gratuito) |
-| **google_turbo** | ~3× più veloce | nessuno (gratuito) |
+| **google_turbo** | Veloce (12 mirror, parallelo, resistente ai rate limit) | nessuno (gratuito) |
 | **bing** | Veloce | nessuno (gratuito) |
 | **bing_turbo** | ~3× più veloce | nessuno (gratuito) |
 | **bing_ultra** | ~6× più veloce | nessuno (gratuito) |
