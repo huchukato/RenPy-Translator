@@ -33,7 +33,13 @@ LANGUAGES = {
     "German": "de", "Portuguese": "pt", "Japanese": "ja", "Chinese": "zh",
     "Russian": "ru", "Korean": "ko", "Arabic": "ar",
 }
-BACKENDS = ["google", "google_turbo", "bing", "bing_turbo", "bing_ultra", "openrouter", "llama"]
+BACKENDS = {
+    "Google Turbo": "google_turbo",
+    "Bing Turbo": "bing_ultra",
+    "OpenRouter": "openrouter",
+    "Llama Local": "llama",
+}
+BACKEND_LABELS = {value: label for label, value in BACKENDS.items()}
 
 UI_TEXTS = {
     "en": {
@@ -118,7 +124,7 @@ class SettingsDialog(ctk.CTkToplevel):
         super().__init__(parent)
         self.parent = parent
         self.title("Settings")
-        self.geometry("500x460")
+        self.geometry("500x520")
         self.resizable(False, False)
         self.grab_set()
         self._build()
@@ -142,6 +148,10 @@ class SettingsDialog(ctk.CTkToplevel):
         self.llama_file = ctk.CTkEntry(self, width=460)
         self.llama_file.pack(**pad)
 
+        ctk.CTkLabel(self, text="Translation profile:").pack(anchor="w", **pad)
+        self.translation_profile = ctk.CTkComboBox(self, values=["Safe", "Balanced", "Fast"], width=460)
+        self.translation_profile.pack(**pad)
+
         ctk.CTkButton(self, text="Save", command=self._save,
                       fg_color=COLOR_BTN_MAIN).pack(pady=12)
 
@@ -151,6 +161,7 @@ class SettingsDialog(ctk.CTkToplevel):
         self.or_model.set(s.get("openrouter_model", OPENROUTER_FREE_MODELS[0]))
         self.llama_repo.insert(0, s.get("llama_model_repo", "llmfan46/gemma-4-E4B-it-ultra-uncensored-heretic-GGUF"))
         self.llama_file.insert(0, s.get("llama_model_file", ""))
+        self.translation_profile.set(s.get("translation_profile", "Balanced"))
 
     def _save(self):
         self.parent.settings.update({
@@ -158,6 +169,7 @@ class SettingsDialog(ctk.CTkToplevel):
             "openrouter_model": self.or_model.get(),
             "llama_model_repo": self.llama_repo.get().strip(),
             "llama_model_file": self.llama_file.get().strip(),
+            "translation_profile": self.translation_profile.get(),
         })
         self.parent._save_settings()
         self.destroy()
@@ -250,9 +262,10 @@ class TranslatorApp(ctk.CTk):
         self.lang_combo.pack(side="left", padx=4)
 
         ctk.CTkLabel(ctrl, text=self.t("backend"), text_color=COLOR_SUBTEXT).pack(side="left", padx=(16, 4))
-        self.backend_var = ctk.StringVar(value=self.settings.get("backend", "bing_ultra"))
-        self.backend_combo = ctk.CTkComboBox(ctrl, values=BACKENDS, width=120,
-                                             variable=self.backend_var)
+        saved_backend = self.settings.get("backend", "bing_ultra")
+        self.backend_var = ctk.StringVar(value=BACKEND_LABELS.get(saved_backend, "Bing Turbo"))
+        self.backend_combo = ctk.CTkComboBox(ctrl, values=list(BACKENDS), width=140,
+                                             variable=self.backend_var, command=self._on_backend_change)
         self.backend_combo.pack(side="left", padx=4)
 
         # Tabs
@@ -567,6 +580,10 @@ class TranslatorApp(ctk.CTk):
 
     # ─── Translation ───────────────────────────────────────────────────────
 
+    def _on_backend_change(self, label: str):
+        self.settings["backend"] = BACKENDS[label]
+        self._save_settings()
+
     def _on_option_change(self):
         self.settings["preserve_names"] = bool(self.preserve_names_var.get())
         self.settings["translate_ui"] = bool(self.translate_ui_var.get())
@@ -577,7 +594,7 @@ class TranslatorApp(ctk.CTk):
         target = LANGUAGES.get(lang_name, "it")
         s = self.settings
         return TranslatorConfig(
-            backend=self.backend_var.get(),
+            backend=BACKENDS[self.backend_var.get()],
             source_lang="en",
             target_lang=target,
             libre_endpoint=s.get("libre_endpoint", "http://localhost:5000"),
@@ -585,6 +602,7 @@ class TranslatorApp(ctk.CTk):
             openrouter_model=s.get("openrouter_model", OPENROUTER_FREE_MODELS[0]),
             llama_model_repo=s.get("llama_model_repo", ""),
             llama_model_file=s.get("llama_model_file", ""),
+            translation_profile=s.get("translation_profile", "Balanced"),
             preserve_names=bool(self.preserve_names_var.get()),
             translate_menu=bool(self.translate_ui_var.get()),  # usato da TranslatorConfig
             character_names=self.character_names,

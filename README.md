@@ -65,14 +65,24 @@ Dependencies are installed automatically via `uv` on first launch.
 
 | Backend | Speed | Requires |
 |---|---|---|
-| **google** | Medium | nothing (free) |
-| **google_turbo** | Fast (12 mirrors, parallel, rate-limit resistant) | nothing (free) |
-| **bing** | Fast | nothing (free) |
-| **bing_turbo** | ~3× faster | nothing (free) |
-| **bing_ultra** | ~6× faster | nothing (free) |
-| **libre** | Medium | local LibreTranslate server |
-| **openrouter** | Medium | free API key at openrouter.ai |
-| **llama** | Slow | local `.gguf` model via llama_cpp |
+| **Google Turbo** | Fast (12 mirrors, parallel, rate-limit resistant) | nothing (free) |
+| **Bing Turbo** | Fast (parallel sessions) | nothing (free) |
+| **OpenRouter** | Medium | API key at openrouter.ai |
+| **Llama Local** | Slow | local `.gguf` model via llama_cpp |
+
+---
+
+## 🛡️ Translation Profiles
+
+Choose a profile in **Settings** for Google Turbo and Bing Turbo:
+
+| Profile | Workers | Request pacing | Recommended use |
+|---|---:|---|---|
+| **Safe** | 2 | 350ms random delay | Long translations; lowest risk of rate limiting |
+| **Balanced** | 4 | 120ms random delay | Default; speed and reliability |
+| **Fast** | 6 | No added delay | Short jobs; higher risk of rate limiting |
+
+Google Turbo always uses its mirror health tracking and exponential backoff after rate-limit responses.
 
 ---
 
@@ -103,7 +113,6 @@ If you also use **[Ren'Py WTForge](https://github.com/huchukato/RenPy-WTForge)**
 ## 🙏 Credits
 
 - Tool by **[huchukato](https://f95zone.to/members/huchukato.11155677/)** (F95Zone)
-- Google Turbo mirror logic inspired by **[iskdr](https://f95zone.to/members/iskdr.6112387/)** (F95Zone)
 - UnRen Tools by **huchukato, goobdoob, jimmy5 & Sam**
 - rpatool by **[Shiz](https://codeberg.org/shiz/rpatool)**
 - unrpyc by **[CensoredUsername](https://github.com/CensoredUsername/unrpyc)**

@@ -7,7 +7,10 @@ Backend di traduzione: Google, LibreTranslate, OpenRouter, llama_cpp
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable, Literal
+import random
 import re
+import threading
+import time
 import requests
 
 try:
@@ -61,6 +64,7 @@ class TranslatorConfig:
     character_names: frozenset = frozenset()
     timeout_s: int = 30
     batch_size: int = 50
+    translation_profile: Literal["Safe", "Balanced", "Fast"] = "Balanced"
 
 
 class TranslationError(RuntimeError):
@@ -81,7 +85,7 @@ class Translator:
         }
         self._gt_global_cooldown: float = 0.0
         self._gt_consecutive_429: int = 0
-        self._gt_lock = None  # inizializzato lazy in _google_turbo
+        self._gt_lock = threading.Lock()
 
     def cancel(self):
         self.cancelled = True
@@ -105,7 +109,7 @@ class Translator:
 
         # Backend batch-nativi: gestiscono internamente chunking/parallelismo
         # — passare tutto in una volta è molto più veloce
-        if self.cfg.backend in ("bing", "bing_turbo", "bing_ultra", "google"):
+        if self.cfg.backend in ("bing", "bing_turbo", "bing_ultra", "google", "google_turbo"):
             if self.cancelled:
                 raise TranslationError("Traduzione annullata.")
             translated = self._translate_batch(unique, log_cb, progress_cb, 0, total)
@@ -169,6 +173,14 @@ class Translator:
     ]
     _MIRROR_BAN_TIME = 120    # secondi di ban dopo troppi errori
     _MIRROR_MAX_FAILS = 5     # errori prima del ban
+    _TURBO_PROFILES = {
+        "Safe": (2, 0.35),
+        "Balanced": (4, 0.12),
+        "Fast": (6, 0.0),
+    }
+
+    def _turbo_profile(self) -> tuple[int, float]:
+        return self._TURBO_PROFILES.get(self.cfg.translation_profile, self._TURBO_PROFILES["Balanced"])
 
     def _google(self, texts: list[str], progress_cb=None, done_offset=0, total=0) -> list[str]:
         if not GOOGLE_OK:
@@ -216,7 +228,6 @@ class Translator:
 
     def _gt_next_mirror(self) -> str:
         """Ritorna il prossimo mirror disponibile; aspetta se tutti sono in cooldown."""
-        import time
         now = time.time()
         if now < self._gt_global_cooldown:
             time.sleep(min(self._gt_global_cooldown - now, 5.0))
@@ -237,7 +248,6 @@ class Translator:
             self._mirror_health[mirror]["fails"] = 0
 
     def _gt_mark_fail(self, mirror: str, is_429: bool = False):
-        import time
         if is_429:
             self._gt_consecutive_429 += 1
             wait = min(3.0 * (2 ** (self._gt_consecutive_429 - 1)), 30.0)
@@ -250,12 +260,14 @@ class Translator:
 
     def _gt_translate_chunk(self, chunk_text: str, src: str, tgt: str) -> list[str]:
         """Traduce un chunk multi-stringa via mirror mobile di Google. Ritorna lista di stringhe."""
-        import time
         from urllib.parse import quote
         sep = self._GOOGLE_TURBO_SEP
         mirror = self._gt_next_mirror()
         for attempt in range(3):
             try:
+                _, request_delay = self._turbo_profile()
+                if request_delay:
+                    time.sleep(request_delay * random.uniform(0.75, 1.25))
                 ua = self._GT_UA_LIST[attempt % len(self._GT_UA_LIST)]
                 url = f"{mirror}?sl={src}&tl={tgt}&q={quote(chunk_text)}"
                 r = requests.get(url, headers={"User-Agent": ua}, timeout=self.cfg.timeout_s)
@@ -298,8 +310,7 @@ class Translator:
         src, tgt = self.cfg.source_lang, self.cfg.target_lang
         sep = self._GOOGLE_TURBO_SEP
         lim = self._GOOGLE_TURBO_CHAR_LIMIT
-        if self._gt_lock is None:
-            self._gt_lock = threading.Lock()
+        workers, _ = self._turbo_profile()
 
         # Build chunks
         chunks: list[tuple[list[int], str]] = []
@@ -328,7 +339,7 @@ class Translator:
                     parts.append(fb[0] if fb and fb[0] else orig)
             return indices, parts
 
-        with ThreadPoolExecutor(max_workers=self._GOOGLE_TURBO_WORKERS) as ex:
+        with ThreadPoolExecutor(max_workers=workers) as ex:
             futures = {ex.submit(do_chunk, item): item for item in enumerate(chunks)}
             for fut in as_completed(futures):
                 if self.cancelled:
@@ -362,7 +373,7 @@ class Translator:
         "en-GB,en;q=0.9", "en-CA,en-US;q=0.7,en;q=0.3",
     ]
     _BING_CHAR_LIMIT = 900   # limite reale API pubblica Bing (~1000 char, usiamo 900 per sicurezza)
-    _BING_SEP = "\n<<<SEP>>>\n"  # separatore univoco — Bing non traduce i token <<<>>> 
+    _BING_SEP = "\n<<<SEP>>>\n"  # separatore univoco — Bing non traduce i token <<<>>>
 
     def _bing_make_session(self, base_url: str = "https://www.bing.com", idx: int = 0) -> tuple:
         """Crea sessione con IG + AbusePreventionHelper. Ritorna (session, ig, key, token)."""
@@ -499,7 +510,8 @@ class Translator:
         from concurrent.futures import ThreadPoolExecutor, as_completed
         import threading
         src, tgt = self.cfg.source_lang, self.cfg.target_lang
-        bases = ["https://www.bing.com"] * 3 + ["https://cn.bing.com"] * 3
+        workers, _ = self._turbo_profile()
+        bases = (["https://www.bing.com", "https://cn.bing.com"] * workers)[:workers]
         sessions = [self._bing_make_session(base_url=b, idx=i) for i, b in enumerate(bases)]
         chunks = self._bing_split_chunks(texts)
         results = list(texts)
@@ -521,7 +533,7 @@ class Translator:
                 except Exception:
                     return indices, None
 
-        with ThreadPoolExecutor(max_workers=6) as ex:
+        with ThreadPoolExecutor(max_workers=workers) as ex:
             futures = [ex.submit(do_chunk, (i, c)) for i, c in enumerate(chunks)]
             for f in as_completed(futures):
                 indices, parts = f.result()

@@ -65,14 +65,24 @@ Le dipendenze vengono installate automaticamente tramite `uv` al primo avvio.
 
 | Backend | Velocità | Requisiti |
 |---|---|---|
-| **google** | Medio | nessuno (gratuito) |
-| **google_turbo** | Veloce (12 mirror, parallelo, resistente ai rate limit) | nessuno (gratuito) |
-| **bing** | Veloce | nessuno (gratuito) |
-| **bing_turbo** | ~3× più veloce | nessuno (gratuito) |
-| **bing_ultra** | ~6× più veloce | nessuno (gratuito) |
-| **libre** | Medio | server LibreTranslate locale |
-| **openrouter** | Medio | API key gratuita su openrouter.ai |
-| **llama** | Lento | modello `.gguf` locale via llama_cpp |
+| **Google Turbo** | Veloce (12 mirror, parallelo, resistente ai rate limit) | nessuno (gratuito) |
+| **Bing Turbo** | Veloce (sessioni parallele) | nessuno (gratuito) |
+| **OpenRouter** | Medio | API key su openrouter.ai |
+| **Llama Local** | Lento | modello `.gguf` locale via llama_cpp |
+
+---
+
+## 🛡️ Profili di traduzione
+
+Scegli un profilo nelle **Impostazioni** per Google Turbo e Bing Turbo:
+
+| Profilo | Worker | Ritmo richieste | Uso consigliato |
+|---|---:|---|---|
+| **Safe** | 2 | Ritardo casuale di 350ms | Traduzioni lunghe; minor rischio di rate limit |
+| **Balanced** | 4 | Ritardo casuale di 120ms | Predefinito; equilibrio tra velocità e affidabilità |
+| **Fast** | 6 | Nessun ritardo aggiuntivo | Lavori brevi; rischio maggiore di rate limit |
+
+Google Turbo usa sempre il controllo salute dei mirror e il backoff esponenziale dopo risposte rate-limited.
 
 ---
 
@@ -103,7 +113,6 @@ Se usi anche **[Ren'Py WTForge](https://github.com/huchukato/RenPy-WTForge)** pe
 ## 🙏 Crediti
 
 - Tool di **[huchukato](https://f95zone.to/members/huchukato.11155677/)** (F95Zone)
-- Logica mirror Google Turbo ispirata da **[iskdr](https://f95zone.to/members/iskdr.6112387/)** (F95Zone)
 - UnRen Tools di **huchukato, goobdoob, jimmy5 & Sam**
 - rpatool di **[Shiz](https://codeberg.org/shiz/rpatool)**
 - unrpyc di **[CensoredUsername](https://github.com/CensoredUsername/unrpyc)**
