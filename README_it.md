@@ -103,6 +103,7 @@ Se usi anche **[Ren'Py WTForge](https://github.com/huchukato/RenPy-WTForge)** pe
 ## 🙏 Crediti
 
 - Tool di **[huchukato](https://f95zone.to/members/huchukato.11155677/)** (F95Zone)
+- Logica mirror Google Turbo ispirata da **[iskdr](https://f95zone.to/members/iskdr.6112387/)** (F95Zone)
 - UnRen Tools di **huchukato, goobdoob, jimmy5 & Sam**
 - rpatool di **[Shiz](https://codeberg.org/shiz/rpatool)**
 - unrpyc di **[CensoredUsername](https://github.com/CensoredUsername/unrpyc)**
