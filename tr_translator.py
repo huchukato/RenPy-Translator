@@ -6,7 +6,9 @@ Backend di traduzione: Google, LibreTranslate, OpenRouter, llama_cpp
 
 from __future__ import annotations
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Callable, Literal
+import json
 import random
 import re
 import threading
@@ -80,12 +82,36 @@ class Translator:
         self.cfg = cfg
         self.cache: dict[str, str] = {}
         self.cancelled = False
+        self._load_disk_cache()
         self._mirror_health: dict[str, dict] = {
             ep: {"fails": 0, "banned_until": 0.0} for ep in self._GOOGLE_MIRRORS
         }
         self._gt_global_cooldown: float = 0.0
         self._gt_consecutive_429: int = 0
+        self._gt_adaptive_delay: float = 0.0
         self._gt_lock = threading.Lock()
+
+    def _cache_path(self) -> Path:
+        lang_pair = f"{self.cfg.source_lang}_{self.cfg.target_lang}"
+        return Path.home() / ".cache" / "renpy-translator" / f"translation_cache_{lang_pair}.json"
+
+    def _load_disk_cache(self):
+        try:
+            cache_path = self._cache_path()
+            if cache_path.exists():
+                data = json.loads(cache_path.read_text(encoding="utf-8"))
+                if isinstance(data, dict):
+                    self.cache = {str(key): str(value) for key, value in data.items()}
+        except Exception:
+            self.cache = {}
+
+    def _save_disk_cache(self):
+        try:
+            cache_path = self._cache_path()
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            cache_path.write_text(json.dumps(self.cache, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception:
+            pass
 
     def cancel(self):
         self.cancelled = True
@@ -97,26 +123,27 @@ class Translator:
         log_cb: Callable[[str, str], None] | None = None,
     ) -> dict[str, str]:
         unique = list(dict.fromkeys(t for t in texts if t))
+        total = len(unique)
 
         if self.cfg.preserve_names:
             preserved = {t for t in unique if self._is_name(t)}
-            for n in preserved:
-                self.cache[n] = n
-            unique = [t for t in unique if t not in preserved]
+            for name in preserved:
+                self.cache[name] = name
 
-        total = len(unique)
-        done = 0
+        pending = [text for text in unique if text not in self.cache]
+        cached_count = total - len(pending)
+        if progress_cb and cached_count:
+            progress_cb(cached_count, total)
 
-        # Backend batch-nativi: gestiscono internamente chunking/parallelismo
-        # — passare tutto in una volta è molto più veloce
-        if self.cfg.backend in ("bing", "bing_turbo", "bing_ultra", "google", "google_turbo"):
+        if pending and self.cfg.backend in ("bing", "bing_turbo", "bing_ultra", "google", "google_turbo"):
             if self.cancelled:
                 raise TranslationError("Traduzione annullata.")
-            translated = self._translate_batch(unique, log_cb, progress_cb, 0, total)
-            for orig, tr in zip(unique, translated):
+            translated = self._translate_batch(pending, log_cb, progress_cb, cached_count, total)
+            for orig, tr in zip(pending, translated):
                 self.cache[orig] = tr
         else:
-            batches = [unique[i:i + self.cfg.batch_size] for i in range(0, total, self.cfg.batch_size)]
+            done = cached_count
+            batches = [pending[i:i + self.cfg.batch_size] for i in range(0, len(pending), self.cfg.batch_size)]
             for batch in batches:
                 if self.cancelled:
                     raise TranslationError("Traduzione annullata.")
@@ -127,7 +154,8 @@ class Translator:
                     if progress_cb:
                         progress_cb(done, total)
 
-        return dict(self.cache)
+        self._save_disk_cache()
+        return {text: self.cache.get(text, "") for text in unique}
 
     def _translate_batch(self, texts: list[str], log_cb=None, progress_cb=None, done_offset=0, total=0) -> list[str]:
         protected, maps = zip(*[self._protect(t) for t in texts]) if texts else ([], [])
@@ -243,22 +271,31 @@ class Translator:
         return available[0]
 
     def _gt_mark_ok(self, mirror: str):
-        self._gt_consecutive_429 = max(0, self._gt_consecutive_429 - 1)
-        if mirror in self._mirror_health:
-            self._mirror_health[mirror]["fails"] = 0
+        with self._gt_lock:
+            self._gt_consecutive_429 = max(0, self._gt_consecutive_429 - 1)
+            self._gt_adaptive_delay = max(0.0, self._gt_adaptive_delay - 0.005)
+            if mirror in self._mirror_health:
+                self._mirror_health[mirror]["fails"] = 0
 
     def _gt_mark_fail(self, mirror: str, is_429: bool = False):
-        if is_429:
-            self._gt_consecutive_429 += 1
-            wait = min(3.0 * (2 ** (self._gt_consecutive_429 - 1)), 30.0)
-            self._gt_global_cooldown = time.time() + wait
-        if mirror in self._mirror_health:
-            h = self._mirror_health[mirror]
-            h["fails"] += 1
-            if h["fails"] >= self._MIRROR_MAX_FAILS:
-                h["banned_until"] = time.time() + self._MIRROR_BAN_TIME
+        with self._gt_lock:
+            if is_429:
+                self._gt_consecutive_429 += 1
+                self._gt_adaptive_delay = min(2.0, self._gt_adaptive_delay + 0.15)
+                wait = min(3.0 * (2 ** (self._gt_consecutive_429 - 1)), 30.0)
+                self._gt_global_cooldown = time.time() + wait
+            if mirror in self._mirror_health:
+                h = self._mirror_health[mirror]
+                h["fails"] += 1
+                if h["fails"] >= self._MIRROR_MAX_FAILS:
+                    h["banned_until"] = time.time() + self._MIRROR_BAN_TIME
 
-    def _gt_translate_chunk(self, chunk_text: str, src: str, tgt: str) -> list[str]:
+    def _gt_make_session(self) -> requests.Session:
+        session = requests.Session()
+        session.headers.update({"Accept-Language": "en-US,en;q=0.9"})
+        return session
+
+    def _gt_translate_chunk(self, chunk_text: str, src: str, tgt: str, session: requests.Session | None = None) -> list[str]:
         """Traduce un chunk multi-stringa via mirror mobile di Google. Ritorna lista di stringhe."""
         from urllib.parse import quote
         sep = self._GOOGLE_TURBO_SEP
@@ -266,15 +303,21 @@ class Translator:
         for attempt in range(3):
             try:
                 _, request_delay = self._turbo_profile()
-                if request_delay:
-                    time.sleep(request_delay * random.uniform(0.75, 1.25))
+                with self._gt_lock:
+                    adaptive_delay = self._gt_adaptive_delay
+                delay = request_delay * random.uniform(0.75, 1.25) + adaptive_delay
+                if delay:
+                    time.sleep(delay)
                 ua = self._GT_UA_LIST[attempt % len(self._GT_UA_LIST)]
                 url = f"{mirror}?sl={src}&tl={tgt}&q={quote(chunk_text)}"
-                r = requests.get(url, headers={"User-Agent": ua}, timeout=self.cfg.timeout_s)
+                client = session or requests
+                r = client.get(url, headers={"User-Agent": ua}, timeout=self.cfg.timeout_s)
                 is_429 = r.status_code == 429
                 r.raise_for_status()
                 # scraping HTML: classe result-container (endpoint /m)
                 m = re.search(r'class="(?:result-container|t0|gt-cd)"[^>]*>(.*?)</div>', r.text, re.DOTALL)
+                if not m:
+                    m = re.search(r'class="result-container">(.*?)</div>', r.text, re.DOTALL)
                 if not m:
                     self._gt_mark_fail(mirror)
                     mirror = self._gt_next_mirror()
@@ -291,7 +334,7 @@ class Translator:
                 originals = chunk_text.split(sep)
                 if len(parts) == len(originals):
                     return parts
-                return [translated] + [""] * (len(originals) - 1)
+                return []
             except requests.exceptions.HTTPError as e:
                 is_429 = e.response is not None and e.response.status_code == 429
                 self._gt_mark_fail(mirror, is_429=is_429)
@@ -311,6 +354,7 @@ class Translator:
         sep = self._GOOGLE_TURBO_SEP
         lim = self._GOOGLE_TURBO_CHAR_LIMIT
         workers, _ = self._turbo_profile()
+        thread_local = threading.local()
 
         # Build chunks
         chunks: list[tuple[list[int], str]] = []
@@ -330,13 +374,17 @@ class Translator:
 
         def do_chunk(chunk_idx_data):
             _, (indices, chunk_text) = chunk_idx_data
-            parts = self._gt_translate_chunk(chunk_text, src, tgt)
-            if not any(parts):  # tutti vuoti — fallback stringa per stringa
+            session = getattr(thread_local, "session", None)
+            if session is None:
+                session = self._gt_make_session()
+                thread_local.session = session
+            parts = self._gt_translate_chunk(chunk_text, src, tgt, session)
+            if len(parts) != len(indices):
                 originals = chunk_text.split(sep)
                 parts = []
                 for orig in originals:
-                    fb = self._gt_translate_chunk(orig, src, tgt)
-                    parts.append(fb[0] if fb and fb[0] else orig)
+                    fb = self._gt_translate_chunk(orig, src, tgt, session)
+                    parts.append(fb[0] if fb else orig)
             return indices, parts
 
         with ThreadPoolExecutor(max_workers=workers) as ex:

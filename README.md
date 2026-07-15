@@ -82,7 +82,11 @@ Choose a profile in **Settings** for Google Turbo and Bing Turbo:
 | **Balanced** | 4 | 120ms random delay | Default; speed and reliability |
 | **Fast** | 6 | No added delay | Short jobs; higher risk of rate limiting |
 
-Google Turbo always uses its mirror health tracking and exponential backoff after rate-limit responses.
+Google Turbo always uses mirror health tracking, reusable HTTP sessions, adaptive pacing, and exponential backoff after rate-limit responses.
+
+## 💾 Translation Cache
+
+Completed translations are cached per language pair in `~/.cache/renpy-translator/`. Re-running a translation skips text already in the cache, reducing both runtime and requests to translation services.
 
 ---
 

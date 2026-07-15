@@ -197,6 +197,7 @@ class TranslatorApp(ctk.CTk):
         self._load_settings()
         self._build_ui()
         self._set_icon()
+        self._restore_last_game()
 
     # ─── UI Build ──────────────────────────────────────────────────────────
 
@@ -256,9 +257,9 @@ class TranslatorApp(ctk.CTk):
             rb.pack(side="left", padx=4)
 
         ctk.CTkLabel(ctrl, text=self.t("target_lang"), text_color=COLOR_SUBTEXT).pack(side="left", padx=(20, 4))
-        self.lang_var = ctk.StringVar(value="Italian")
+        self.lang_var = ctk.StringVar(value=self.settings.get("target_lang", "Italian"))
         self.lang_combo = ctk.CTkComboBox(ctrl, values=list(LANGUAGES.keys()), width=130,
-                                          variable=self.lang_var)
+                                          variable=self.lang_var, command=self._on_target_lang_change)
         self.lang_combo.pack(side="left", padx=4)
 
         ctk.CTkLabel(ctrl, text=self.t("backend"), text_color=COLOR_SUBTEXT).pack(side="left", padx=(16, 4))
@@ -341,9 +342,9 @@ class TranslatorApp(ctk.CTk):
         log_top = ctk.CTkFrame(self.tab_log, fg_color="transparent", height=36)
         log_top.pack(fill="x")
         log_top.pack_propagate(False)
-        self.verbose_var = ctk.BooleanVar(value=False)
+        self.verbose_var = ctk.BooleanVar(value=self.settings.get("verbose", False))
         ctk.CTkCheckBox(log_top, text="Verbose (log every string)", variable=self.verbose_var,
-                        text_color=COLOR_SUBTEXT).pack(side="left", padx=12, pady=6)
+                        command=self._on_verbose_change, text_color=COLOR_SUBTEXT).pack(side="left", padx=12, pady=6)
         self.log_text = ctk.CTkTextbox(self.tab_log, fg_color=COLOR_BG,
                                        font=ctk.CTkFont(family="Courier", size=11))
         self.log_text.pack(fill="both", expand=True)
@@ -416,17 +417,22 @@ class TranslatorApp(ctk.CTk):
     # ─── Game Selection ────────────────────────────────────────────────────
 
     def _pick_app(self):
-        path = filedialog.askopenfilename(title="Select .app")
+        initialdir = self.settings.get("last_game_dir", str(Path.home() / "Downloads"))
+        path = filedialog.askopenfilename(title="Select .app", initialdir=initialdir)
         if path:
             self._set_game(Path(path))
 
     def _pick_folder(self):
-        path = filedialog.askdirectory()
+        initialdir = self.settings.get("last_game_dir", str(Path.home() / "Downloads"))
+        path = filedialog.askdirectory(initialdir=initialdir)
         if path:
             self._set_game(Path(path))
 
     def _set_game(self, path: Path):
         self.game_path = path
+        self.settings["last_game_path"] = str(path)
+        self.settings["last_game_dir"] = str(path.parent)
+        self._save_settings()
         self.path_entry.delete(0, "end")
         self.path_entry.insert(0, str(path))
         self.game_status.configure(text=f"{self.t('game_selected')}: {path.name}",
@@ -582,6 +588,14 @@ class TranslatorApp(ctk.CTk):
 
     def _on_backend_change(self, label: str):
         self.settings["backend"] = BACKENDS[label]
+        self._save_settings()
+
+    def _on_target_lang_change(self, language: str):
+        self.settings["target_lang"] = language
+        self._save_settings()
+
+    def _on_verbose_change(self):
+        self.settings["verbose"] = bool(self.verbose_var.get())
         self._save_settings()
 
     def _on_option_change(self):
@@ -750,6 +764,13 @@ class TranslatorApp(ctk.CTk):
 
     def _save_settings(self):
         SETTINGS_FILE.write_text(json.dumps(self.settings, indent=2))
+
+    def _restore_last_game(self):
+        saved_path = self.settings.get("last_game_path")
+        if saved_path:
+            path = Path(saved_path)
+            if path.exists():
+                self._set_game(path)
 
     # ─── Helpers ───────────────────────────────────────────────────────────
 

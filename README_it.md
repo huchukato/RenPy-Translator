@@ -82,7 +82,11 @@ Scegli un profilo nelle **Impostazioni** per Google Turbo e Bing Turbo:
 | **Balanced** | 4 | Ritardo casuale di 120ms | Predefinito; equilibrio tra velocità e affidabilità |
 | **Fast** | 6 | Nessun ritardo aggiuntivo | Lavori brevi; rischio maggiore di rate limit |
 
-Google Turbo usa sempre il controllo salute dei mirror e il backoff esponenziale dopo risposte rate-limited.
+Google Turbo usa sempre controllo salute dei mirror, sessioni HTTP riutilizzabili, ritmo adattivo e backoff esponenziale dopo risposte rate-limited.
+
+## 💾 Cache delle traduzioni
+
+Le traduzioni completate vengono memorizzate per coppia di lingue in `~/.cache/renpy-translator/`. Rieseguire una traduzione salta i testi già in cache, riducendo tempi e richieste ai servizi di traduzione.
 
 ---
 
