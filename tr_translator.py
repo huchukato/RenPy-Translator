@@ -113,6 +113,12 @@ class Translator:
         except Exception:
             pass
 
+    def update_cache(self, original: str, translated: str) -> None:
+        """Persist a manual edit to the disk cache."""
+        if original:
+            self.cache[original] = translated
+            self._save_disk_cache()
+
     def cancel(self):
         self.cancelled = True
 

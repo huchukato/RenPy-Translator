@@ -1,8 +1,8 @@
 #!/bin/bash
 # Build script per Ren'Py Translator - crea un archivio zip da distribuire
-# Uso: ./build.sh [versione]  es: ./build.sh 2.0.1
+# Uso: ./build.sh [versione]  es: ./build.sh 2.1.0
 
-VERSION=${1:-"2.0.0"}
+VERSION=${1:-"2.1.0"}
 DIST_DIR="dist"
 BUILD_NAME="RenPy-Translator-v${VERSION}"
 BUILD_DIR="${DIST_DIR}/${BUILD_NAME}"

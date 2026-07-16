@@ -24,7 +24,7 @@ except ImportError:
 # ─── Costanti ────────────────────────────────────────────────────────────────
 
 APP_TITLE = "Ren'Py Translator"
-VERSION   = "2.0.0"
+VERSION   = "2.1.0"
 SCRIPT_DIR = Path(__file__).parent
 SETTINGS_FILE = SCRIPT_DIR / "translator_settings.json"
 
@@ -53,6 +53,11 @@ UI_TEXTS = {
         "filter_all": "All",
         "filter_translated": "Translated",
         "filter_untranslated": "Untranslated",
+        "analyze_translate": "Analyze & Translate",
+        "save_translation": "Save Translation",
+        "export": "Export",
+        "save_edit": "Save Edit",
+        "edit_selected": "Edit selected translation:",
         "target_lang": "Target language:",
         "backend": "Backend:",
         "analyze": "Analyze Game",
@@ -83,6 +88,11 @@ UI_TEXTS = {
         "filter_all": "Tutte",
         "filter_translated": "Tradotte",
         "filter_untranslated": "Non tradotte",
+        "analyze_translate": "Analizza & Traduci",
+        "save_translation": "Salva Traduzione",
+        "export": "Esporta",
+        "save_edit": "Salva Modifica",
+        "edit_selected": "Modifica traduzione selezionata:",
         "target_lang": "Lingua target:",
         "backend": "Backend:",
         "analyze": "Analizza Gioco",
@@ -116,6 +126,7 @@ COLOR_BTN_ALT  = "#06b6d4"
 COLOR_BTN_WARN = "#e11d48"
 COLOR_TEXT     = "#f0e6ff"
 COLOR_SUBTEXT  = "#a78bfa"
+COLOR_SELECTED = "#0e7490"
 
 
 # ─── Settings Dialog ─────────────────────────────────────────────────────────
@@ -186,6 +197,7 @@ class TranslatorApp(ctk.CTk):
         self.character_names: frozenset = frozenset()
         self._page = 0
         self._page_size = 100
+        self._selected_index: int | None = None
         self.translator: Translator | None = None
         self.settings: dict = {}
         self._load_settings()
@@ -283,20 +295,26 @@ class TranslatorApp(ctk.CTk):
         bottom.pack(fill="x", pady=(2, 0))
         bottom.pack_propagate(False)
 
-        self.btn_start = ctk.CTkButton(bottom, text="▶  Start Translation",
-                                       fg_color="#16a34a", hover_color="#15803d",
-                                       width=200, command=self._start_translation)
-        self.btn_start.pack(side="left", padx=10, pady=10)
+        self.btn_analyze_translate = ctk.CTkButton(bottom, text=f"▶  {self.t('analyze_translate')}",
+                                                   fg_color="#16a34a", hover_color="#15803d",
+                                                   width=200, command=self._analyze_translate,
+                                                   state="disabled")
+        self.btn_analyze_translate.pack(side="left", padx=10, pady=10)
+
+        self.btn_save_translation = ctk.CTkButton(bottom, text=self.t("save_translation"),
+                                                  fg_color=COLOR_BTN_ALT, width=140, command=self._save_translation,
+                                                  state="disabled")
+        self.btn_save_translation.pack(side="left", padx=6, pady=10)
+
+        self.btn_export = ctk.CTkButton(bottom, text=self.t("export"),
+                                        fg_color="#ec4899", width=110, command=self._export_tl,
+                                        state="disabled")
+        self.btn_export.pack(side="left", padx=6, pady=10)
 
         self.btn_cancel = ctk.CTkButton(bottom, text=self.t("cancel"),
                                         fg_color=COLOR_BTN_WARN, width=100, command=self._cancel,
                                         state="disabled")
         self.btn_cancel.pack(side="left", padx=6, pady=10)
-
-        self.btn_export = ctk.CTkButton(bottom, text="Export",
-                                        fg_color="#1a5276", width=110, command=self._export_tl,
-                                        state="disabled")
-        self.btn_export.pack(side="left", padx=6, pady=10)
 
         ctk.CTkButton(bottom, text=self.t("settings"), fg_color=COLOR_ACCENT,
                       width=100, command=self._open_settings).pack(side="right", padx=10, pady=10)
@@ -328,6 +346,23 @@ class TranslatorApp(ctk.CTk):
         self.table_frame.pack(fill="both", expand=True)
         self._build_table_header()
 
+        self.editor_frame = ctk.CTkFrame(self.tab_strings, fg_color=COLOR_PANEL, height=120)
+        self.editor_frame.pack(side="bottom", fill="x", padx=8, pady=8)
+        self.editor_frame.pack_propagate(False)
+
+        ctk.CTkLabel(self.editor_frame, text=self.t("edit_selected"), text_color=COLOR_SUBTEXT,
+                     font=ctk.CTkFont(size=11)).pack(anchor="w", padx=10, pady=(6, 2))
+        self.edit_text = ctk.CTkTextbox(self.editor_frame, height=80, font=ctk.CTkFont(size=12))
+        self.edit_text.pack(fill="x", padx=10, pady=(0, 6))
+        self.edit_text.configure(state="disabled")
+
+        btn_row = ctk.CTkFrame(self.editor_frame, fg_color="transparent")
+        btn_row.pack(fill="x", padx=10, pady=(0, 6))
+        self.btn_edit_save = ctk.CTkButton(btn_row, text=self.t("save_edit"), width=100,
+                                           fg_color=COLOR_BTN_MAIN, command=self._save_edit,
+                                           state="disabled")
+        self.btn_edit_save.pack(side="right")
+
     def _build_table_header(self):
         cols = [("#", 40), ("Kind", 80), ("Speaker", 100), ("Original", 340), ("Translation", 340), ("File", 160)]
         header = ctk.CTkFrame(self.table_frame, fg_color=COLOR_ACCENT)
@@ -354,6 +389,8 @@ class TranslatorApp(ctk.CTk):
     def _render_table(self, items: list[ExtractedString]):
         self._filtered = items
         self._page = 0
+        self._selected_index = None
+        self._clear_editor()
         self._render_page()
 
     def _render_page(self):
@@ -367,6 +404,8 @@ class TranslatorApp(ctk.CTk):
         for i, item in enumerate(page_items):
             abs_i = start + i
             bg = COLOR_BG if abs_i % 2 == 0 else COLOR_PANEL
+            if self._selected_index is not None and abs_i == self._selected_index:
+                bg = COLOR_SELECTED
             row = ctk.CTkFrame(self.table_rows_frame, fg_color=bg, height=28)
             row.pack(fill="x")
             row.pack_propagate(False)
@@ -378,9 +417,16 @@ class TranslatorApp(ctk.CTk):
                 (item.translated[:60] if item.translated else "", cols_w[4]),
                 (Path(item.file).name, cols_w[5]),
             ]:
-                ctk.CTkLabel(row, text=val, width=w, anchor="w",
-                             text_color=COLOR_TEXT if item.translated else COLOR_SUBTEXT,
-                             font=ctk.CTkFont(size=11)).pack(side="left", padx=4)
+                lbl = ctk.CTkLabel(row, text=val, width=w, anchor="w",
+                                   text_color=COLOR_TEXT if item.translated else COLOR_SUBTEXT,
+                                   font=ctk.CTkFont(size=11))
+                lbl.pack(side="left", padx=4)
+
+            def _make_click(idx=abs_i, it=item):
+                return lambda event: self._on_row_click(idx, it)
+            row.bind("<Button-1>", _make_click())
+            for child in row.winfo_children():
+                child.bind("<Button-1>", _make_click())
         # Pagination controls
         total_pages = max(1, (len(items) + self._page_size - 1) // self._page_size)
         pag = ctk.CTkFrame(self.table_rows_frame, fg_color=COLOR_PANEL, height=32)
@@ -414,6 +460,34 @@ class TranslatorApp(ctk.CTk):
             visible = self.items
         self._render_table(visible)
 
+    def _clear_editor(self):
+        self.edit_text.configure(state="normal")
+        self.edit_text.delete("1.0", "end")
+        self.edit_text.configure(state="disabled")
+        self.btn_edit_save.configure(state="disabled")
+        self._selected_index = None
+
+    def _on_row_click(self, abs_i: int, item: ExtractedString):
+        self._selected_index = abs_i
+        self._render_page()
+        self.edit_text.configure(state="normal")
+        self.edit_text.delete("1.0", "end")
+        self.edit_text.insert("end", item.translated if item.translated else "")
+        self.btn_edit_save.configure(state="normal")
+
+    def _save_edit(self):
+        if self._selected_index is None or self._selected_index >= len(self._filtered):
+            return
+        item = self._filtered[self._selected_index]
+        new_text = self.edit_text.get("1.0", "end-1c")
+        item.translated = new_text
+        self._render_page()
+        if not self.translator:
+            self.translator = Translator(self._make_config())
+        self.translator.update_cache(item.text, new_text)
+        self.btn_save_translation.configure(state="normal")
+        self.btn_export.configure(state="normal")
+
     # ─── Game Selection ────────────────────────────────────────────────────
 
     def _pick_app(self):
@@ -430,6 +504,11 @@ class TranslatorApp(ctk.CTk):
 
     def _set_game(self, path: Path):
         self.game_path = path
+        self.extractor = None
+        self.items = []
+        self._filtered = []
+        self.translator = None
+        self._selected_index = None
         self.settings["last_game_path"] = str(path)
         self.settings["last_game_dir"] = str(path.parent)
         self._save_settings()
@@ -437,34 +516,35 @@ class TranslatorApp(ctk.CTk):
         self.path_entry.insert(0, str(path))
         self.game_status.configure(text=f"{self.t('game_selected')}: {path.name}",
                                    text_color=COLOR_BTN_MAIN)
+        self.btn_analyze_translate.configure(state="normal")
+        self.btn_save_translation.configure(state="disabled")
+        self.btn_export.configure(state="disabled")
+        self._apply_filter()
+        self._clear_editor()
 
     # ─── Analysis ──────────────────────────────────────────────────────────
 
-    def _start_translation(self):
+    def _analyze_translate(self):
         if not self.game_path:
             messagebox.showerror(self.t("error"), "Seleziona un gioco prima.")
             return
-        self.btn_start.configure(state="disabled")
-        self.btn_cancel.configure(state="normal")
-        self.btn_export.configure(state="disabled")
-        self.progress.set(0)
+        self._reset_for_work()
         self.items = []
-        threading.Thread(target=self._start_thread, daemon=True).start()
+        threading.Thread(target=self._analyze_translate_thread, daemon=True).start()
 
-    def _start_thread(self):
+    def _analyze_translate_thread(self):
         try:
-            # Phase 1-3: analisi
             self.extractor = TRExtractor(self.game_path)
             self.log("Phase 1: Extracting .rpa files...")
-            self.root_after(lambda: self.progress.set(0.05))
+            self.root_after(lambda: self._set_progress(0.05, "Extracting..."))
             self.extractor.extract_rpa_files()
 
             self.log("Phase 2: Decompiling .rpyc files...")
-            self.root_after(lambda: self.progress.set(0.15))
+            self.root_after(lambda: self._set_progress(0.15, "Decompiling..."))
             self.extractor.decompile_rpyc_files()
 
             self.log("Phase 3: Parsing .rpy files...")
-            self.root_after(lambda: self.progress.set(0.25))
+            self.root_after(lambda: self._set_progress(0.25, "Parsing..."))
             rpy_files = self.extractor.get_rpy_files()
             translate_ui = bool(self.translate_ui_var.get())
             self.character_names = frozenset(extract_character_names(self.extractor.game_dir))
@@ -481,9 +561,7 @@ class TranslatorApp(ctk.CTk):
                     items.append(item)
             self.items = items
             self.log(self.t("analysis_complete").format(len(items), len(rpy_files)))
-            self.root_after(lambda: self._apply_filter())
 
-            # Phase 4: traduzione
             self.log("Phase 4: Translating...")
             cfg = self._make_config()
             self.translator = Translator(cfg)
@@ -492,8 +570,7 @@ class TranslatorApp(ctk.CTk):
             def _progress(d, t):
                 frac = 0.25 + (d / t) * 0.65 if t else 0.25
                 self.root_after(lambda d=d, t=t, frac=frac: (
-                    self.progress.set(frac),
-                    self.progress_label.configure(text=f"{int(frac*100)}%  ({d}/{t})")
+                    self._set_progress(frac, f"{int(frac*100)}%  ({d}/{t})")
                 ))
             result = self.translator.translate_many(
                 texts,
@@ -503,32 +580,22 @@ class TranslatorApp(ctk.CTk):
             for item in self.items:
                 item.translated = result.get(item.text, "")
             done = sum(1 for i in self.items if i.translated)
-            self.log(self.t("translation_complete").format(done, len(self.items)))
-
-            # Phase 5: salvataggio
-            self.log("Phase 5: Saving TL files...")
-            lang_folder = self.lang_var.get().lower()
-            translations = {i.text: i.translated for i in self.items if i.translated}
-            written = write_tl_files(self.extractor.game_dir, lang_folder, self.items, translations)
-            splash_src = SCRIPT_DIR / "splash.png"
-            activator = write_activator(self.extractor.game_dir, lang_folder, splash_src)
-            save_msg = self.t("saved").format(len(written), self.extractor.game_dir / "tl" / lang_folder)
-            self.log(save_msg)
-            self.root_after(lambda: self._on_start_done(save_msg))
+            msg = self.t("translation_complete").format(done, len(self.items))
+            self.log(msg)
+            self.root_after(lambda: self._on_analyze_translate_done(msg))
         except Exception as e:
             err = str(e)
             self.log(f"Error: {err}")
             self.root_after(lambda: messagebox.showerror(self.t("error"), err))
-            self.root_after(lambda: self._reset_buttons())
+            self.root_after(lambda: self._on_work_done())
 
-    def _on_start_done(self, msg):
+    def _on_analyze_translate_done(self, msg):
         self.progress.set(1.0)
         self.progress_label.configure(text=msg)
-        self._reset_buttons()
-        self.btn_export.configure(state="normal")
         self._apply_filter()
+        self._on_work_done()
         self.update_idletasks()
-        self.after(100, lambda: messagebox.showinfo("Done", msg))
+        self.after(100, lambda: messagebox.showinfo("", msg))
 
     def _analyze(self):
         if not self.game_path:
@@ -685,8 +752,22 @@ class TranslatorApp(ctk.CTk):
         self.after(100, lambda: messagebox.showinfo(self.t("translation_complete").split(":")[0], msg))
 
     def _reset_buttons(self):
-        self.btn_start.configure(state="normal")
+        self._on_work_done()
+
+    def _reset_for_work(self):
+        self.btn_analyze_translate.configure(state="disabled")
+        self.btn_save_translation.configure(state="disabled")
+        self.btn_export.configure(state="disabled")
+        self.btn_cancel.configure(state="normal")
+        self.progress.set(0)
+        self.progress_label.configure(text="")
+
+    def _on_work_done(self):
         self.btn_cancel.configure(state="disabled")
+        self.btn_analyze_translate.configure(state="normal" if self.game_path else "disabled")
+        can_save = bool(self.game_path and self.extractor and self.items)
+        self.btn_save_translation.configure(state="normal" if can_save else "disabled")
+        self.btn_export.configure(state="normal" if can_save else "disabled")
 
     def _cancel(self):
         if self.translator:
@@ -694,63 +775,90 @@ class TranslatorApp(ctk.CTk):
 
     # ─── Save TL / Export ────────────────────────────────────────────────
 
-    def _export_tl(self):
-        if not self.extractor or not self.items:
+    def _save_translation(self):
+        if not self.game_path or not self.extractor or not self.items:
             return
-        lang_name = self.lang_var.get()
-        lang_folder = lang_name.lower()
+        translations = {i.text: i.translated for i in self.items if i.translated}
+        if not translations:
+            messagebox.showinfo("", "Nessuna traduzione da salvare.")
+            return
+        self._reset_for_work()
+        threading.Thread(target=self._save_translation_thread, daemon=True).start()
+
+    def _save_translation_thread(self):
+        try:
+            self.root_after(lambda: self._set_progress(0.5, "Saving translation..."))
+            lang_name = self.lang_var.get()
+            lang_folder = lang_name.lower()
+            translations = {i.text: i.translated for i in self.items if i.translated}
+            if not translations:
+                self.root_after(lambda: messagebox.showinfo("", "Nessuna traduzione da salvare."))
+                self.root_after(lambda: self._on_work_done())
+                return
+            written = write_tl_files(self.extractor.game_dir, lang_folder, self.items, translations)
+            splash_src = SCRIPT_DIR / "splash.png"
+            activator = write_activator(self.extractor.game_dir, lang_folder, splash_src)
+            msg = self.t("saved").format(len(written), self.extractor.game_dir / "tl" / lang_folder)
+            self.log(msg)
+            self.log(f"Activator: {activator}")
+            self.root_after(lambda: self._on_save_done(msg))
+        except Exception as e:
+            err = str(e)
+            self.log(f"Error: {err}")
+            self.root_after(lambda: messagebox.showerror(self.t("error"), err))
+            self.root_after(lambda: self._on_work_done())
+
+    def _on_save_done(self, msg):
+        self._set_progress(1.0, msg)
+        self._on_work_done()
+        self.update_idletasks()
+        self.after(100, lambda: messagebox.showinfo("", msg))
+
+    def _export_tl(self):
+        if not self.game_path or not self.extractor or not self.items:
+            return
         translations = {i.text: i.translated for i in self.items if i.translated}
         if not translations:
             messagebox.showinfo("", "Nessuna traduzione da esportare.")
             return
-
+        lang_name = self.lang_var.get()
+        lang_folder = lang_name.lower()
         game_name = self._game_display_name()
         default_name = f"{game_name}-{lang_folder}"
         dest = filedialog.askdirectory(title=f"Scegli cartella destinazione per '{default_name}'")
         if not dest:
             return
         export_dir = Path(dest) / default_name
+        self._reset_for_work()
+        threading.Thread(target=self._export_thread, args=(export_dir, lang_folder), daemon=True).start()
 
-        import shutil
-        tl_src = self.extractor.game_dir / "tl" / lang_folder
-        tl_dst = export_dir / "game" / "tl" / lang_folder
-        if tl_src.exists():
-            if tl_dst.exists():
-                shutil.rmtree(tl_dst)
-            shutil.copytree(tl_src, tl_dst)
+    def _export_thread(self, export_dir: Path, lang_folder: str):
+        try:
+            self.log(f"Exporting patch to {export_dir} ...")
+            self.root_after(lambda: self._set_progress(0.3, "Exporting..."))
+            translations = {i.text: i.translated for i in self.items if i.translated}
+            if not translations:
+                self.root_after(lambda: messagebox.showinfo("", "Nessuna traduzione da esportare."))
+                self.root_after(lambda: self._on_work_done())
+                return
+            written = write_tl_files(export_dir / "game", lang_folder, self.items, translations)
+            splash_src = SCRIPT_DIR / "splash.png"
+            activator = write_activator(export_dir / "game", lang_folder, splash_src)
+            self.log(self.t("saved").format(len(written), export_dir / "game" / "tl" / lang_folder))
+            self.log(f"Activator: {activator}")
+            self.root_after(lambda: self._on_export_done(export_dir))
+        except Exception as e:
+            err = str(e)
+            self.log(f"Error: {err}")
+            self.root_after(lambda: messagebox.showerror(self.t("error"), err))
+            self.root_after(lambda: self._on_work_done())
 
-        activator_src = self.extractor.game_dir / f"renpy_translator_{lang_folder}.rpy"
-        if activator_src.exists():
-            act_dst = export_dir / "game" / activator_src.name
-            act_dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(activator_src, act_dst)
-
-        splash_src = self.extractor.game_dir / "renpy_translator_splash.png"
-        if splash_src.exists():
-            sp_dst = export_dir / "game" / splash_src.name
-            sp_dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(splash_src, sp_dst)
-
+    def _on_export_done(self, export_dir: Path):
+        self._set_progress(1.0, "Export complete")
+        self._on_work_done()
         msg = f"Esportato in:\n{export_dir}"
         self.log(msg)
         messagebox.showinfo("Export", msg)
-
-    def _save_tl(self):
-        if not self.extractor or not self.items:
-            return
-        lang_name = self.lang_var.get()
-        lang_folder = lang_name.lower()  # es. "italian", "french", ...
-        translations = {i.text: i.translated for i in self.items if i.translated}
-        if not translations:
-            messagebox.showinfo("", "Nessuna traduzione da salvare.")
-            return
-        written = write_tl_files(self.extractor.game_dir, lang_folder, self.items, translations)
-        splash_src = SCRIPT_DIR / "splash.png"
-        activator = write_activator(self.extractor.game_dir, lang_folder, splash_src)
-        msg = self.t("saved").format(len(written), self.extractor.game_dir / "tl" / lang_folder)
-        self.log(msg)
-        self.log(f"Activator: {activator}")
-        messagebox.showinfo("", msg)
 
     # ─── Settings ──────────────────────────────────────────────────────────
 
@@ -799,6 +907,10 @@ class TranslatorApp(ctk.CTk):
 
     def root_after(self, fn):
         self.after(0, fn)
+
+    def _set_progress(self, value: float, text: str = ""):
+        self.progress.set(max(0.0, min(1.0, value)))
+        self.progress_label.configure(text=text)
 
     def _toggle_lang(self):
         self.lang = "it" if self.lang == "en" else "en"

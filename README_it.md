@@ -27,12 +27,13 @@
 |---|---|
 | 📦 **Estrazione automatica** | Estrae archivi `.rpa` e decompila file `.rpyc` automaticamente |
 | 🧠 **Parsing intelligente** | Rileva dialoghi, narrazione, scelte di menu e testi UI |
-| 🌍 **Più backend** | Google, Bing, Bing Turbo, Bing Ultra, LibreTranslate, OpenRouter, llama_cpp |
-| ⚡ **Bing Turbo / Ultra** | Pool di sessioni parallele (3–6 worker) per traduzioni fino a 6× più veloci |
+| 🌍 **Più backend** | Google Turbo, Bing Turbo, OpenRouter, Llama Local |
+| ⚡ **Bing Turbo** | Pool di sessioni parallele (3–6 worker) per traduzioni fino a 6× più veloci |
 | 🔒 **Protezione token** | Preserva i tag Ren'Py `{color=...}`, `[variabile]`, ecc. durante la traduzione |
 | 📄 **Tabella paginata** | Gestisce 10.000+ stringhe senza bloccarsi — 100 righe per pagina |
 | 💾 **Output file TL** | Scrive file `game/tl/<lingua>/` standard compatibili con Ren'Py |
 | 🌐 **Interfaccia IT / EN** | Passa dall'italiano all'inglese con un click |
+| 📝 **Editor inline** | Clicca una riga nella tabella per rivedere e modificare la traduzione automatica prima di salvare |
 
 ---
 
@@ -55,9 +56,11 @@ Le dipendenze vengono installate automaticamente tramite `uv` al primo avvio.
 ## 🔧 Flusso di lavoro
 
 1. **Seleziona il gioco** — `.app` (macOS) o cartella del gioco (Windows/Linux)
-2. **Scegli lingua target e backend**
-3. **Clicca Start Translation** — estrae, decompila, analizza, traduce e salva `game/tl/<lingua>/` automaticamente con avanzamento in tempo reale
-4. **Export** — crea una cartella distribuibile chiamata `<NomeGioco>-<lingua>/`
+2. **Scegli lingua target, backend e profilo di traduzione**
+3. **Clicca Analizza & Traduci** — estrae, decompila, analizza e traduce il gioco
+4. **Rivedi e modifica** — clicca una riga nella tabella per modificare la traduzione automatica
+5. **Clicca Salva Traduzione** — scrive le traduzioni riviste in `game/tl/<lingua>/` e installa l'attivatore
+6. **Export** (opzionale) — crea una cartella distribuibile `<NomeGioco>-<lingua>/` con `game/tl/<lingua>/` e l'attivatore, anche senza un salvataggio precedente
 
 ---
 
@@ -74,7 +77,7 @@ Le dipendenze vengono installate automaticamente tramite `uv` al primo avvio.
 
 ## 🛡️ Profili di traduzione
 
-Scegli un profilo nelle **Impostazioni** per Google Turbo e Bing Turbo:
+Scegli un profilo accanto al selettore del backend per Google Turbo e Bing Turbo:
 
 | Profilo | Worker | Ritmo richieste | Uso consigliato |
 |---|---:|---|---|

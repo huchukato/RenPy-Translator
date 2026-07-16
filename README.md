@@ -27,12 +27,13 @@
 |---|---|
 | 📦 **Auto Extraction** | Extracts `.rpa` archives and decompiles `.rpyc` files automatically |
 | 🧠 **Smart Parsing** | Detects dialogue, narration, menu choices, and UI strings |
-| 🌍 **Multiple Backends** | Google, Bing, Bing Turbo, Bing Ultra, LibreTranslate, OpenRouter, llama_cpp |
-| ⚡ **Bing Turbo / Ultra** | Parallel session pools (3–6 workers) for up to 6x faster translation |
+| 🌍 **Multiple Backends** | Google Turbo, Bing Turbo, OpenRouter, Llama Local |
+| ⚡ **Bing Turbo** | Parallel session pools (3–6 workers) for up to 6x faster translation |
 | 🔒 **Token Protection** | Preserves Ren'Py tags `{color=...}`, `[variable]`, etc. during translation |
 | 📄 **Paginated Table** | Handles 10,000+ strings without freezing — 100 rows per page |
 | 💾 **TL File Output** | Writes standard `game/tl/<lang>/` files compatible with Ren'Py |
 | 🌐 **EN / IT UI** | Switch between English and Italian interface |
+| 📝 **Inline Editor** | Click any row in the table to review and edit the machine translation before saving |
 
 ---
 
@@ -55,9 +56,11 @@ Dependencies are installed automatically via `uv` on first launch.
 ## 🔧 Workflow
 
 1. **Select Game** — `.app` (macOS) or game folder (Windows/Linux)
-2. **Choose target language and backend**
-3. **Click Start Translation** — automatically extracts, decompiles, parses, translates and saves `game/tl/<lang>/` with live progress
-4. **Export** — packages the translation into a distributable folder named `<GameName>-<lang>/`
+2. **Choose target language, backend and translation profile**
+3. **Click Analyze & Translate** — extracts, decompiles, parses and translates the game
+4. **Review & Edit** — click any row in the table to edit the machine translation
+5. **Click Save Translation** — writes the reviewed translations to `game/tl/<lang>/` and installs the activator
+6. **Export** (optional) — creates a distributable `GameName-<lang>/` folder with `game/tl/<lang>/` and activator, even without a previous Save
 
 ---
 
@@ -74,7 +77,7 @@ Dependencies are installed automatically via `uv` on first launch.
 
 ## 🛡️ Translation Profiles
 
-Choose a profile in **Settings** for Google Turbo and Bing Turbo:
+Choose a profile next to the backend selector for Google Turbo and Bing Turbo:
 
 | Profile | Workers | Request pacing | Recommended use |
 |---|---:|---|---|
