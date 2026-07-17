@@ -26,6 +26,12 @@
 - **`renpy.input()` prompts** and Ren'Py native `_("...")` UI strings are now extracted and translated.
 - **Export folders** now use the actual game name, e.g. `LustLine-italian/`.
 - **Remembered preferences** — selected backend, profile, target language, verbose logging and last selected game path are persisted.
+- **Source language selector** — choose `Auto` for automatic detection or pick a manual source language before translating.
+- **Spanish UI** — the interface now supports English, Italian and Spanish.
+- **Refreshed color palette** — GUI colors updated to match the new logo tones.
+- **Fit-to-screen window** — main window now opens at 90% of the screen size so all controls are visible.
+- **CTkMaker export** — export the GUI layout to a CTkMaker project for visual customization.
+- **Build script versioning** — `build/build.sh` now reads the version automatically from `pyproject.toml`.
 
 ## 🐛 Fixed
 
@@ -36,6 +42,7 @@
 - The splash screen could reappear every time the player returned to the main menu.
 - Export folders were named `autorun-italian` instead of the actual game name.
 - Google Turbo now correctly falls back to individual translations when the chunk separator is altered.
+- Splash image path now correctly points to `img/splash.png` during Save and Export.
 
 ## 🗑️ Removed
 

@@ -32,8 +32,10 @@
 | 🔒 **Protezione token** | Preserva i tag Ren'Py `{color=...}`, `[variabile]`, ecc. durante la traduzione |
 | 📄 **Tabella paginata** | Gestisce 10.000+ stringhe senza bloccarsi — 100 righe per pagina |
 | 💾 **Output file TL** | Scrive file `game/tl/<lingua>/` standard compatibili con Ren'Py |
-| 🌐 **Interfaccia IT / EN** | Passa dall'italiano all'inglese con un click |
+| 🌐 **Interfaccia IT / EN / ES** | Passa dall'italiano all'inglese o allo spagnolo con un click |
+| 🌐 **Lingua sorgente** | Scegli rilevamento automatico o una lingua sorgente manuale |
 | 📝 **Editor inline** | Clicca una riga nella tabella per rivedere e modificare la traduzione automatica prima di salvare |
+| 🔧 **Export CTkMaker** | Esporta il layout della GUI in un progetto CTkMaker per personalizzarla visivamente |
 
 ---
 
@@ -56,7 +58,7 @@ Le dipendenze vengono installate automaticamente tramite `uv` al primo avvio.
 ## 🔧 Flusso di lavoro
 
 1. **Seleziona il gioco** — `.app` (macOS) o cartella del gioco (Windows/Linux)
-2. **Scegli lingua target, backend e profilo di traduzione**
+2. **Scegli lingua sorgente (Auto o manuale), lingua target, backend e profilo di traduzione**
 3. **Clicca Analizza & Traduci** — estrae, decompila, analizza e traduce il gioco
 4. **Rivedi e modifica** — clicca una riga nella tabella per modificare la traduzione automatica
 5. **Clicca Salva Traduzione** — scrive le traduzioni riviste in `game/tl/<lingua>/` e installa l'attivatore
