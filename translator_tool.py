@@ -319,7 +319,13 @@ class TranslatorApp(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title(APP_TITLE)
-        self.geometry("1100x700")
+        screen_w = self.winfo_screenwidth()
+        screen_h = self.winfo_screenheight()
+        w = int(screen_w * 0.9)
+        h = int(screen_h * 0.9)
+        x = (screen_w - w) // 2
+        y = (screen_h - h) // 2
+        self.geometry(f"{w}x{h}+{x}+{y}")
         self.minsize(900, 600)
         self.configure(fg_color=COLOR_BG)
 
