@@ -1,8 +1,6 @@
 # 🌐 Ren'Py Translator
 
-<p align="center">
-  <img src="logo_512.png" alt="Ren'Py Translator Logo" width="160">
-</p>
+![RenPy Translator Logo](img/logo_512.png)
 
 <p align="center">
   <a href="README.md"><img src="https://img.shields.io/badge/🇬🇧-Read%20in%20English-blue?style=flat-square" alt="Read in English"></a>
@@ -15,9 +13,7 @@
 
 > Uno strumento GUI universale per tradurre automaticamente i giochi Ren'Py — estrae gli script, rileva dialoghi e narrazione, e scrive i file di traduzione compatibili con Ren'Py (`tl/<lingua>/`).
 
-<p align="center">
-  <img src="translator-gui.png" alt="Ren'Py Translator GUI" width="800">
-</p>
+![Ren'Py Translator GUI](img/translator-gui.png)
 
 ---
 
