@@ -82,6 +82,14 @@ UI_TEXTS = {
         "search_original": "Original",
         "search_translation": "Translation",
         "search_both": "Both",
+        "clear_cache": "Clear cache",
+        "clear_cache_title": "Clear cache",
+        "clear_cache_confirm": "This will delete the global translation cache. This cannot be undone. Proceed?",
+        "clear_cache_done": "Cache cleared: {0} file(s) removed.",
+        "restore_translation": "Restore Translation",
+        "restore_translation_title": "Restore Translation",
+        "restore_translation_confirm": "This will delete all translation files and reset translations in memory. This cannot be undone. Proceed?",
+        "restore_translation_done": "Translation restored: {0} files removed, {1} strings reset.",
     },
     "it": {
         "game_selection": "Selezione Gioco",
@@ -123,6 +131,14 @@ UI_TEXTS = {
         "search_original": "Originale",
         "search_translation": "Traduzione",
         "search_both": "Entrambi",
+        "clear_cache": "Cancella cache",
+        "clear_cache_title": "Cancella cache",
+        "clear_cache_confirm": "Verrà cancellata la cache globale delle traduzioni. Non è annullabile. Procedere?",
+        "clear_cache_done": "Cache cancellata: {0} file rimossi.",
+        "restore_translation": "Ripristina Traduzione",
+        "restore_translation_title": "Ripristina Traduzione",
+        "restore_translation_confirm": "Verranno cancellati tutti i file di traduzione e resettate le traduzioni in memoria. Non è annullabile. Procedere?",
+        "restore_translation_done": "Traduzione ripristinata: {0} file rimossi, {1} stringhe resettate.",
     },
 }
 
@@ -327,6 +343,14 @@ class TranslatorApp(ctk.CTk):
                                         fg_color=COLOR_BTN_WARN, width=100, command=self._cancel,
                                         state="disabled")
         self.btn_cancel.pack(side="left", padx=6, pady=10)
+
+        self.btn_clear_cache = ctk.CTkButton(bottom, text=self.t("clear_cache"),
+                                              fg_color=COLOR_BTN_WARN, width=100, command=self._clear_cache)
+        self.btn_clear_cache.pack(side="right", padx=6, pady=10)
+
+        self.btn_restore_translation = ctk.CTkButton(bottom, text=self.t("restore_translation"),
+                                                     fg_color=COLOR_BTN_WARN, width=140, command=self._restore_translation)
+        self.btn_restore_translation.pack(side="right", padx=6, pady=10)
 
         ctk.CTkButton(bottom, text=self.t("settings"), fg_color=COLOR_ACCENT,
                       width=100, command=self._open_settings).pack(side="right", padx=10, pady=10)
@@ -557,9 +581,6 @@ class TranslatorApp(ctk.CTk):
         self._filtered = []
         self.translator = None
         self._selected_index = None
-        self.settings["last_game_path"] = str(path)
-        self.settings["last_game_dir"] = str(path.parent)
-        self._save_settings()
         self.path_entry.delete(0, "end")
         self.path_entry.insert(0, str(path))
         self.game_status.configure(text=f"{self.t('game_selected')}: {path.name}",
@@ -908,6 +929,78 @@ class TranslatorApp(ctk.CTk):
         self.log(msg)
         messagebox.showinfo("Export", msg)
 
+    def _clear_cache(self):
+        if not messagebox.askyesno(self.t("clear_cache_title"), self.t("clear_cache_confirm")):
+            return
+
+        removed = 0
+        cache_dir = Path.home() / ".cache" / "renpy-translator"
+        if cache_dir.exists():
+            for cache_file in cache_dir.glob("translation_cache_*.json"):
+                try:
+                    cache_file.unlink()
+                    removed += 1
+                except Exception as e:
+                    self.log(f"Could not delete {cache_file}: {e}")
+
+        msg = self.t("clear_cache_done").format(removed)
+        self.log(msg)
+        messagebox.showinfo(self.t("clear_cache_title"), msg)
+
+        if self.translator:
+            self.translator.cache = {}
+
+    def _restore_translation(self):
+        if not self.game_path or not self.extractor:
+            messagebox.showerror(self.t("error"), self.t("no_game"))
+            return
+
+        if not messagebox.askyesno(self.t("restore_translation_title"), self.t("restore_translation_confirm")):
+            return
+
+        files_removed = 0
+        strings_reset = 0
+
+        lang_name = self.lang_var.get()
+        lang_folder = lang_name.lower()
+        game_dir = self.extractor.game_dir
+
+        # Cancella game/tl/<lang>/
+        tl_dir = game_dir / "tl" / lang_folder
+        if tl_dir.exists():
+            try:
+                for f in tl_dir.glob("*.rpy"):
+                    f.unlink()
+                    files_removed += 1
+                tl_dir.rmdir()
+                self.log(f"Removed TL directory: {tl_dir}")
+            except Exception as e:
+                self.log(f"Could not remove TL directory: {e}")
+
+        # Cancella renpy_translator_<lang>.rpy
+        activator_file = game_dir / f"renpy_translator_{lang_folder}.rpy"
+        if activator_file.exists():
+            try:
+                activator_file.unlink()
+                files_removed += 1
+                self.log(f"Removed activator: {activator_file}")
+            except Exception as e:
+                self.log(f"Could not remove activator: {e}")
+
+        # Resetta traduzioni in memoria
+        for item in self.items:
+            if item.translated:
+                item.translated = ""
+                strings_reset += 1
+
+        msg = self.t("restore_translation_done").format(files_removed, strings_reset)
+        self.log(msg)
+        messagebox.showinfo(self.t("restore_translation_title"), msg)
+
+        self._apply_filter()
+        self.btn_save_translation.configure(state="disabled")
+        self.btn_export.configure(state="disabled")
+
     # ─── Settings ──────────────────────────────────────────────────────────
 
     def _open_settings(self):
@@ -926,11 +1019,7 @@ class TranslatorApp(ctk.CTk):
         SETTINGS_FILE.write_text(json.dumps(self.settings, indent=2))
 
     def _restore_last_game(self):
-        saved_path = self.settings.get("last_game_path")
-        if saved_path:
-            path = Path(saved_path)
-            if path.exists():
-                self._set_game(path)
+        pass
 
     # ─── Helpers ───────────────────────────────────────────────────────────
 
