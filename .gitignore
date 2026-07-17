@@ -9,3 +9,5 @@ build.sh
 !build/build.sh
 logo.png
 uv.lock
+RELEASE_NOTES_v2.1.0.md
+F95.md
