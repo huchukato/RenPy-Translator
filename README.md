@@ -1,23 +1,17 @@
 # 🌐 Ren'Py Translator
 
-<p align="center">
-  <img src="logo_512.png" alt="Ren'Py Translator Logo" width="160">
-</p>
-
-<p align="center">
-  <a href="README_it.md"><img src="https://img.shields.io/badge/🇮🇹-Leggi%20in%20italiano-green?style=flat-square" alt="Leggi in italiano"></a>
-</p>
+![RenPy Translator Logo](img/logo_512.png)
 
 ![Python](https://img.shields.io/badge/Python-3.9%2B-blue?logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 ![GUI](https://img.shields.io/badge/GUI-customtkinter-green)
 ![Status](https://img.shields.io/badge/Status-Active-brightgreen)
+[![🇮🇹 Italiano](https://img.shields.io/badge/🇮🇹-Italiano-green?style=flat-square)](README_it.md)
+
 
 > A universal GUI tool to automatically translate Ren'Py games — extracts scripts, detects dialogue and narration, and writes Ren'Py-compatible translation files (`tl/<lang>/`).
 
-<p align="center">
-  <img src="translator-gui.png" alt="Ren'Py Translator GUI" width="800">
-</p>
+![Ren'Py Translator GUI](img/translator-gui.png)
 
 ---
 
