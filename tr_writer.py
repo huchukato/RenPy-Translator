@@ -25,25 +25,33 @@ def _tl_dir(game_dir: Path, lang_code: str) -> Path:
     return game_dir / "tl" / lang_code
 
 
+_BACKUPS_DIR = "renpy_translator_backups"
+
+
 def _original_backup_dir(game_dir: Path) -> Path:
-    return game_dir / ORIGINAL_BACKUP_NAME
+    return game_dir.parent / _BACKUPS_DIR / ORIGINAL_BACKUP_NAME
 
 
 def _legacy_backups(game_dir: Path) -> list[Path]:
-    return sorted(
-        (p for p in game_dir.glob("tl_bak_*")
-         if p.is_dir() and p.name != ORIGINAL_BACKUP_NAME),
-        key=lambda p: p.stat().st_mtime,
-    )
+    legacy_dir = game_dir.parent / _BACKUPS_DIR
+    old = [p for p in game_dir.glob("tl_bak_*") if p.is_dir() and p.name != ORIGINAL_BACKUP_NAME]
+    new = [p for p in legacy_dir.glob("tl_bak_*") if p.is_dir() and p.name != ORIGINAL_BACKUP_NAME]
+    return sorted(old + new, key=lambda p: p.stat().st_mtime)
 
 
 def _original_backup(game_dir: Path) -> Path | None:
     original = _original_backup_dir(game_dir)
+    # Se il backup originale era dentro game/, spostalo fuori per non farlo caricare a Ren'Py
+    old_original = game_dir / ORIGINAL_BACKUP_NAME
+    if old_original.exists() and not original.exists():
+        original.parent.mkdir(parents=True, exist_ok=True)
+        old_original.rename(original)
     if original.is_dir():
         return original
     backups = _legacy_backups(game_dir)
     if not backups:
         return None
+    original.parent.mkdir(parents=True, exist_ok=True)
     backups[0].rename(original)
     for backup in backups[1:]:
         shutil.rmtree(backup)
