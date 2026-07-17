@@ -59,6 +59,8 @@ UI_TEXTS = {
         "save_edit": "Save Edit",
         "edit_selected": "Edit selected translation:",
         "target_lang": "Target language:",
+        "source_lang": "Source language:",
+        "source_auto": "Auto",
         "backend": "Backend:",
         "analyze": "Analyze Game",
         "translate_all": "Translate All",
@@ -123,6 +125,8 @@ UI_TEXTS = {
         "save_edit": "Salva Modifica",
         "edit_selected": "Modifica traduzione selezionata:",
         "target_lang": "Lingua target:",
+        "source_lang": "Lingua sorgente:",
+        "source_auto": "Auto",
         "backend": "Backend:",
         "analyze": "Analizza Gioco",
         "translate_all": "Traduci Tutto",
@@ -187,6 +191,8 @@ UI_TEXTS = {
         "save_edit": "Guardar Edición",
         "edit_selected": "Editar traducción seleccionada:",
         "target_lang": "Idioma de destino:",
+        "source_lang": "Idioma de origen:",
+        "source_auto": "Auto",
         "backend": "Backend:",
         "analyze": "Analizar juego",
         "translate_all": "Traducir todo",
@@ -240,20 +246,20 @@ UI_TEXTS = {
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
-COLOR_BG       = "#0c0a12"
-COLOR_PANEL    = "#18122b"
-COLOR_ACCENT   = "#7c3aed"
-COLOR_ACCENT_MAGENTA = "#ec4899"
+COLOR_BG       = "#021226"
+COLOR_PANEL    = "#052a4a"
+COLOR_ACCENT   = "#1a8bc0"
+COLOR_ACCENT_MAGENTA = "#b04abd"
 COLOR_ACCENT_GOLD = "#f59e0b"
 COLOR_ACCENT_CYAN = "#06b6d4"
-COLOR_BTN_MAIN = "#7c3aed"
-COLOR_BTN_ALT  = "#ec4899"
+COLOR_BTN_MAIN = "#1a8bc0"
+COLOR_BTN_ALT  = "#b04abd"
 COLOR_BTN_WARN = "#e11d48"
 COLOR_BTN_SUCCESS = "#10b981"
-COLOR_TEXT     = "#f0e6ff"
-COLOR_SUBTEXT  = "#a78bfa"
-COLOR_ROW_EVEN = "#0c0a12"
-COLOR_ROW_ODD  = "#18122b"
+COLOR_TEXT     = "#e0f7ff"
+COLOR_SUBTEXT  = "#7ba8c4"
+COLOR_ROW_EVEN = "#021226"
+COLOR_ROW_ODD  = "#052a4a"
 COLOR_SELECTED = "#0e7490"
 
 
@@ -405,7 +411,14 @@ class TranslatorApp(ctk.CTk):
                                     value=val, command=self._apply_filter)
             rb.pack(side="left", padx=4)
 
-        ctk.CTkLabel(ctrl, text=self.t("target_lang"), text_color=COLOR_SUBTEXT).pack(side="left", padx=(20, 4))
+        ctk.CTkLabel(ctrl, text=self.t("source_lang"), text_color=COLOR_SUBTEXT).pack(side="left", padx=(20, 4))
+        source_values = [self.t("source_auto")] + list(LANGUAGES.keys())
+        self.source_lang_var = ctk.StringVar(value=self.settings.get("source_lang_ui", self.t("source_auto")))
+        self.source_lang_combo = ctk.CTkComboBox(ctrl, values=source_values, width=120,
+                                                 variable=self.source_lang_var, command=self._on_source_lang_change)
+        self.source_lang_combo.pack(side="left", padx=4)
+
+        ctk.CTkLabel(ctrl, text=self.t("target_lang"), text_color=COLOR_SUBTEXT).pack(side="left", padx=(16, 4))
         self.lang_var = ctk.StringVar(value=self.settings.get("target_lang", "Italian"))
         self.lang_combo = ctk.CTkComboBox(ctrl, values=list(LANGUAGES.keys()), width=130,
                                           variable=self.lang_var, command=self._on_target_lang_change)
@@ -1005,6 +1018,10 @@ class TranslatorApp(ctk.CTk):
         self.settings["target_lang"] = language
         self._save_settings()
 
+    def _on_source_lang_change(self, language: str):
+        self.settings["source_lang_ui"] = language
+        self._save_settings()
+
     def _on_profile_change(self, profile: str):
         self.settings["translation_profile"] = profile
         self._save_settings()
@@ -1021,10 +1038,15 @@ class TranslatorApp(ctk.CTk):
     def _make_config(self) -> TranslatorConfig:
         lang_name = self.lang_var.get()
         target = LANGUAGES.get(lang_name, "it")
+        source_ui = self.source_lang_var.get()
+        if source_ui == self.t("source_auto"):
+            source = "auto"
+        else:
+            source = LANGUAGES.get(source_ui, "en")
         s = self.settings
         return TranslatorConfig(
             backend=BACKENDS[self.backend_var.get()],
-            source_lang="en",
+            source_lang=source,
             target_lang=target,
             libre_endpoint=s.get("libre_endpoint", "http://localhost:5000"),
             openrouter_api_key=s.get("openrouter_api_key", ""),
@@ -1145,7 +1167,7 @@ class TranslatorApp(ctk.CTk):
             self.log("Original backup created/verified.")
             self.root_after(lambda: self._set_progress(0.5, "Saving translation..."))
             written = write_tl_files(self.extractor.game_dir, lang_folder, self.items, translations)
-            splash_src = SCRIPT_DIR / "splash.png"
+            splash_src = SCRIPT_DIR / "img" / "splash.png"
             activator = write_activator(self.extractor.game_dir, lang_folder, splash_src)
             msg = self.t("saved").format(len(written), self.extractor.game_dir / "tl" / lang_folder)
             self.log(msg)
@@ -1191,7 +1213,7 @@ class TranslatorApp(ctk.CTk):
                 self.root_after(lambda: self._on_work_done())
                 return
             written = write_tl_files(export_dir / "game", lang_folder, self.items, translations)
-            splash_src = SCRIPT_DIR / "splash.png"
+            splash_src = SCRIPT_DIR / "img" / "splash.png"
             activator = write_activator(export_dir / "game", lang_folder, splash_src)
             self.log(self.t("saved").format(len(written), export_dir / "game" / "tl" / lang_folder))
             self.log(f"Activator: {activator}")
