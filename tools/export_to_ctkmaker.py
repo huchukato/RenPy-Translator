@@ -18,7 +18,7 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SOURCE = REPO_ROOT / "translator_tool.py"
-OUTPUT = Path("/Volumes/NVME/dev-ai/CTMaker")
+OUTPUT = Path("/Volumes/NVME/dev-ai/CTMaker/RenPy")
 
 DEFAULT_SIZES = {
     "CTkFrame": (200, 120),
