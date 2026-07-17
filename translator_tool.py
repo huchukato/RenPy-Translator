@@ -76,6 +76,12 @@ UI_TEXTS = {
         "col_original": "Original",
         "col_translation": "Translation",
         "col_file": "File",
+        "filter": "Filter:",
+        "search": "Search:",
+        "search_placeholder": "Search strings...",
+        "search_original": "Original",
+        "search_translation": "Translation",
+        "search_both": "Both",
     },
     "it": {
         "game_selection": "Selezione Gioco",
@@ -111,6 +117,12 @@ UI_TEXTS = {
         "col_original": "Originale",
         "col_translation": "Traduzione",
         "col_file": "File",
+        "filter": "Filtro:",
+        "search": "Cerca:",
+        "search_placeholder": "Cerca stringhe...",
+        "search_original": "Originale",
+        "search_translation": "Traduzione",
+        "search_both": "Entrambi",
     },
 }
 
@@ -254,7 +266,7 @@ class TranslatorApp(ctk.CTk):
         ctrl.pack(fill="x", pady=(2, 0))
         ctrl.pack_propagate(False)
 
-        ctk.CTkLabel(ctrl, text="Filter:", text_color=COLOR_SUBTEXT).pack(side="left", padx=(12, 4))
+        ctk.CTkLabel(ctrl, text=self.t("filter"), text_color=COLOR_SUBTEXT).pack(side="left", padx=(12, 4))
         self.filter_var = ctk.StringVar(value="all")
         for val, key in [("all", "filter_all"), ("translated", "filter_translated"),
                          ("untranslated", "filter_untranslated")]:
@@ -342,6 +354,26 @@ class TranslatorApp(ctk.CTk):
                       onvalue=True, offvalue=False).pack(side="left", padx=10, pady=8)
 
     def _build_strings_tab(self):
+        # Search bar
+        search_frame = ctk.CTkFrame(self.tab_strings, fg_color=COLOR_PANEL, height=36)
+        search_frame.pack(fill="x", padx=8, pady=(8, 4))
+        search_frame.pack_propagate(False)
+        ctk.CTkLabel(search_frame, text=self.t("search"), text_color=COLOR_SUBTEXT).pack(side="left", padx=(8, 4))
+        self.search_var = ctk.StringVar()
+        self.search_var.trace_add("write", lambda *_: self._apply_filter())
+        self.search_entry = ctk.CTkEntry(search_frame, width=310, textvariable=self.search_var,
+                                         placeholder_text=self.t("search_placeholder"))
+        self.search_entry.pack(side="left", padx=(0, 6), pady=4)
+        self._search_scopes = {
+            self.t("search_original"): "original",
+            self.t("search_translation"): "translation",
+            self.t("search_both"): "both",
+        }
+        self.search_scope_var = ctk.StringVar(value=self.t("search_both"))
+        self.search_scope_combo = ctk.CTkComboBox(search_frame, values=list(self._search_scopes), width=150,
+                                                   variable=self.search_scope_var, command=self._on_search_scope_change)
+        self.search_scope_combo.pack(side="left", padx=4, pady=4)
+
         self.table_frame = ctk.CTkScrollableFrame(self.tab_strings, fg_color=COLOR_BG)
         self.table_frame.pack(fill="both", expand=True)
         self._build_table_header()
@@ -458,7 +490,23 @@ class TranslatorApp(ctk.CTk):
             visible = [i for i in self.items if not i.translated]
         else:
             visible = self.items
+
+        query = self.search_var.get().strip().casefold()
+        scope = self._search_scopes.get(self.search_scope_var.get(), "both")
+        if query:
+            def matches(item: ExtractedString) -> bool:
+                original = item.text.casefold()
+                translation = (item.translated or "").casefold()
+                if scope == "original":
+                    return query in original
+                if scope == "translation":
+                    return query in translation
+                return query in original or query in translation
+            visible = [item for item in visible if matches(item)]
         self._render_table(visible)
+
+    def _on_search_scope_change(self, _value: str):
+        self._apply_filter()
 
     def _clear_editor(self):
         self.edit_text.configure(state="normal")
