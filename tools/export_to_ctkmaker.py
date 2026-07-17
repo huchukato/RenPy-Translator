@@ -365,47 +365,30 @@ def main() -> None:
 
     OUTPUT.mkdir(parents=True, exist_ok=True)
     (OUTPUT / "assets" / "images").mkdir(parents=True, exist_ok=True)
-    (OUTPUT / "assets" / "pages").mkdir(parents=True, exist_ok=True)
 
     # Copy assets
     for img in (REPO_ROOT / "img").iterdir():
         if img.is_file():
             shutil.copy2(img, OUTPUT / "assets" / "images" / img.name)
 
-    # Write project.json
-    pages = []
-    for i, doc in enumerate(docs):
-        page_file = f"page_{i}.ctkproj"
-        (OUTPUT / "assets" / "pages" / page_file).write_text(
-            json.dumps(
-                {
-                    "version": 2,
-                    "active_document": doc["id"],
-                    "documents": [doc],
-                    "variables": [],
-                    "name": doc["name"],
-                },
-                indent=2,
-                ensure_ascii=False,
-            ),
-            encoding="utf-8",
-        )
-        pages.append({"id": str(uuid.uuid4()), "file": page_file, "name": doc["name"]})
-
-    project_meta = {
-        "version": 1,
-        "name": "RenPy Translator",
-        "active_page": pages[0]["id"],
-        "pages": pages,
-        "font_defaults": {},
-        "system_fonts": [],
-    }
-    (OUTPUT / "project.json").write_text(
-        json.dumps(project_meta, indent=2, ensure_ascii=False),
+    # CTkMaker opens a single .ctkproj containing multiple documents
+    project_file = OUTPUT / "RenPy Translator.ctkproj"
+    project_file.write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "active_document": docs[0]["id"],
+                "documents": docs,
+                "variables": [],
+                "name": "RenPy Translator",
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
         encoding="utf-8",
     )
 
-    print(f"Exported {len(docs)} page(s) to {OUTPUT}")
+    print(f"Exported {len(docs)} document(s) to {project_file}")
 
 
 if __name__ == "__main__":
