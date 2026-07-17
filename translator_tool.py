@@ -170,6 +170,70 @@ UI_TEXTS = {
         "replace_all_replaced": "Sostituito in {0} elementi.",
         "replace_all_no_matches": "Nessuna corrispondenza. Controllati {0} elementi in {1}.",
     },
+    "es": {
+        "game_selection": "Selección de juego",
+        "game_selected": "Juego seleccionado",
+        "no_game": "Ningún juego seleccionado",
+        "btn_app": ".app",
+        "btn_folder": "Carpeta",
+        "strings_tab": "Cadenas",
+        "log_tab": "Registro",
+        "filter_all": "Todas",
+        "filter_translated": "Traducidas",
+        "filter_untranslated": "No traducidas",
+        "analyze_translate": "Analizar y Traducir",
+        "save_translation": "Guardar Traducción",
+        "export": "Exportar",
+        "save_edit": "Guardar Edición",
+        "edit_selected": "Editar traducción seleccionada:",
+        "target_lang": "Idioma de destino:",
+        "backend": "Backend:",
+        "analyze": "Analizar juego",
+        "translate_all": "Traducir todo",
+        "translate_sel": "Traducir selección",
+        "save_tl": "Guardar archivos TL",
+        "settings": "Ajustes",
+        "cancel": "Cancelar",
+        "analysis_complete": "Análisis completado: {} cadenas en {} archivos",
+        "translation_complete": "Traducción completada: {}/{} cadenas",
+        "saved": "Guardados {} archivos en {}",
+        "error": "Error",
+        "col_num": "#",
+        "col_kind": "Tipo",
+        "col_speaker": "Personaje",
+        "col_original": "Original",
+        "col_translation": "Traducción",
+        "col_file": "Archivo",
+        "filter": "Filtro:",
+        "search": "Buscar:",
+        "search_placeholder": "Buscar cadenas...",
+        "search_original": "Original",
+        "search_translation": "Traducción",
+        "search_both": "Ambos",
+        "clear_cache": "Borrar caché",
+        "clear_cache_title": "Borrar caché",
+        "clear_cache_confirm": "Se borrará la caché global de traducciones. No se puede deshacer. ¿Proceder?",
+        "clear_cache_done": "Caché borrada: {0} archivo(s) eliminado(s).",
+        "restore_backup": "Restaurar copia de seguridad",
+        "restore_backup_title": "Restaurar copia de seguridad",
+        "restore_backup_confirm": "Se restaurarán los archivos de traducción originales desde la copia de seguridad. No se puede deshacer. ¿Proceder?",
+        "restore_backup_done": "Copia de seguridad restaurada desde {0}.",
+        "restore_backup_none": "No se encontró ninguna copia de seguridad original.",
+        "select_all": "Seleccionar todo",
+        "delete_row": "Eliminar fila",
+        "replace_all": "Reemplazar todo",
+        "replace_all_title": "Reemplazar todo",
+        "replace_all_find": "Buscar:",
+        "replace_all_replace": "Reemplazar con:",
+        "replace_all_case": "Distinguir mayúsculas/minúsculas",
+        "replace_all_filtered": "Solo en elementos filtrados",
+        "replace_all_scope": "Buscar en:",
+        "replace_all_scope_original": "Original",
+        "replace_all_scope_translation": "Traducción",
+        "replace_all_scope_both": "Ambos",
+        "replace_all_replaced": "Reemplazado en {0} elementos.",
+        "replace_all_no_matches": "No se encontraron coincidencias. Revisados {0} elementos en {1}.",
+    },
 }
 
 # ─── Tema ────────────────────────────────────────────────────────────────────
@@ -265,6 +329,7 @@ class TranslatorApp(ctk.CTk):
         self.translator: Translator | None = None
         self.settings: dict = {}
         self._load_settings()
+        self.lang = self.settings.get("ui_lang", "en")
         self._build_ui()
         self._set_icon()
         self._restore_last_game()
@@ -301,6 +366,20 @@ class TranslatorApp(ctk.CTk):
         self.game_status = ctk.CTkLabel(game_frame, text=self.t("no_game"),
                                         text_color=COLOR_SUBTEXT, font=ctk.CTkFont(size=11))
         self.game_status.pack(anchor="w")
+
+        # Language selector
+        lang_frame = ctk.CTkFrame(top, fg_color="transparent")
+        lang_frame.pack(side="right", padx=12, pady=8, anchor="n")
+        lang_display = {"en": "English", "it": "Italiano", "es": "Español"}
+        self.ui_lang_var = ctk.StringVar(value=lang_display.get(self.lang, "English"))
+        self.ui_lang_combo = ctk.CTkComboBox(
+            lang_frame,
+            values=["English", "Italiano", "Español"],
+            width=120,
+            variable=self.ui_lang_var,
+            command=self._on_lang_change,
+        )
+        self.ui_lang_combo.pack()
 
         # Progress
         prog_frame = ctk.CTkFrame(self, fg_color=COLOR_PANEL, height=36)
@@ -390,10 +469,6 @@ class TranslatorApp(ctk.CTk):
 
         ctk.CTkButton(bottom, text=self.t("settings"), fg_color=COLOR_ACCENT,
                       width=100, command=self._open_settings).pack(side="right", padx=10, pady=10)
-
-        next_lang = "IT" if self.lang == "en" else "EN"
-        ctk.CTkButton(bottom, text=next_lang, fg_color=COLOR_ACCENT,
-                      width=50, command=self._toggle_lang).pack(side="right", padx=6, pady=10)
 
         # ── Riga opzioni ─────────────────────────────────────────────────
         opts = ctk.CTkFrame(self, fg_color=COLOR_PANEL, height=44)
@@ -1246,8 +1321,11 @@ class TranslatorApp(ctk.CTk):
         self.progress.set(max(0.0, min(1.0, value)))
         self.progress_label.configure(text=text)
 
-    def _toggle_lang(self):
-        self.lang = "it" if self.lang == "en" else "en"
+    def _on_lang_change(self, value: str):
+        mapping = {"English": "en", "Italiano": "it", "Español": "es"}
+        self.lang = mapping.get(value, "en")
+        self.settings["ui_lang"] = self.lang
+        self._save_settings()
         self.destroy()
         app = TranslatorApp()
         app.lang = self.lang
