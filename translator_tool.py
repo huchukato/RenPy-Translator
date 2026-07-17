@@ -13,7 +13,7 @@ from tkinter import filedialog, messagebox
 from tr_extractor import TRExtractor
 from tr_parser import parse_rpy_file, ExtractedString, extract_character_names
 from tr_translator import Translator, TranslatorConfig, TranslationError, OPENROUTER_FREE_MODELS, LANG_NAMES
-from tr_writer import write_tl_files, write_activator
+from tr_writer import write_tl_files, write_activator, backup_tl_dir, restore_tl_backup
 
 try:
     from PIL import Image, ImageTk
@@ -86,10 +86,25 @@ UI_TEXTS = {
         "clear_cache_title": "Clear cache",
         "clear_cache_confirm": "This will delete the global translation cache. This cannot be undone. Proceed?",
         "clear_cache_done": "Cache cleared: {0} file(s) removed.",
-        "restore_translation": "Restore Translation",
-        "restore_translation_title": "Restore Translation",
-        "restore_translation_confirm": "This will delete all translation files and reset translations in memory. This cannot be undone. Proceed?",
-        "restore_translation_done": "Translation restored: {0} files removed, {1} strings reset.",
+        "restore_backup": "Restore Backup",
+        "restore_backup_title": "Restore Backup",
+        "restore_backup_confirm": "This will restore the original translation files from the backup. This cannot be undone. Proceed?",
+        "restore_backup_done": "Backup restored from {0}.",
+        "restore_backup_none": "No original backup found.",
+        "select_all": "Select All",
+        "delete_row": "Delete Row",
+        "replace_all": "Replace All",
+        "replace_all_title": "Replace All",
+        "replace_all_find": "Find:",
+        "replace_all_replace": "Replace with:",
+        "replace_all_case": "Case sensitive",
+        "replace_all_filtered": "Only in filtered items",
+        "replace_all_scope": "Search in:",
+        "replace_all_scope_original": "Original",
+        "replace_all_scope_translation": "Translation",
+        "replace_all_scope_both": "Both",
+        "replace_all_replaced": "Replaced in {0} items.",
+        "replace_all_no_matches": "No matches found. Checked {0} items in {1}.",
     },
     "it": {
         "game_selection": "Selezione Gioco",
@@ -135,10 +150,25 @@ UI_TEXTS = {
         "clear_cache_title": "Cancella cache",
         "clear_cache_confirm": "Verrà cancellata la cache globale delle traduzioni. Non è annullabile. Procedere?",
         "clear_cache_done": "Cache cancellata: {0} file rimossi.",
-        "restore_translation": "Ripristina Traduzione",
-        "restore_translation_title": "Ripristina Traduzione",
-        "restore_translation_confirm": "Verranno cancellati tutti i file di traduzione e resettate le traduzioni in memoria. Non è annullabile. Procedere?",
-        "restore_translation_done": "Traduzione ripristinata: {0} file rimossi, {1} stringhe resettate.",
+        "restore_backup": "Ripristina Backup",
+        "restore_backup_title": "Ripristina Backup",
+        "restore_backup_confirm": "Verranno ripristinati i file di traduzione originali dal backup. Non è annullabile. Procedere?",
+        "restore_backup_done": "Backup ripristinato da {0}.",
+        "restore_backup_none": "Nessun backup originale trovato.",
+        "select_all": "Seleziona Tutto",
+        "delete_row": "Cancella Riga",
+        "replace_all": "Sostituisci Tutto",
+        "replace_all_title": "Sostituisci Tutto",
+        "replace_all_find": "Trova:",
+        "replace_all_replace": "Sostituisci con:",
+        "replace_all_case": "Maiuscole/minuscole",
+        "replace_all_filtered": "Solo negli item filtrati",
+        "replace_all_scope": "Cerca in:",
+        "replace_all_scope_original": "Originale",
+        "replace_all_scope_translation": "Traduzione",
+        "replace_all_scope_both": "Entrambi",
+        "replace_all_replaced": "Sostituito in {0} elementi.",
+        "replace_all_no_matches": "Nessuna corrispondenza. Controllati {0} elementi in {1}.",
     },
 }
 
@@ -146,14 +176,20 @@ UI_TEXTS = {
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
-COLOR_BG       = "#1a1025"
-COLOR_PANEL    = "#231535"
-COLOR_ACCENT   = "#3d2060"
+COLOR_BG       = "#0c0a12"
+COLOR_PANEL    = "#18122b"
+COLOR_ACCENT   = "#7c3aed"
+COLOR_ACCENT_MAGENTA = "#ec4899"
+COLOR_ACCENT_GOLD = "#f59e0b"
+COLOR_ACCENT_CYAN = "#06b6d4"
 COLOR_BTN_MAIN = "#7c3aed"
-COLOR_BTN_ALT  = "#06b6d4"
+COLOR_BTN_ALT  = "#ec4899"
 COLOR_BTN_WARN = "#e11d48"
+COLOR_BTN_SUCCESS = "#10b981"
 COLOR_TEXT     = "#f0e6ff"
 COLOR_SUBTEXT  = "#a78bfa"
+COLOR_ROW_EVEN = "#0c0a12"
+COLOR_ROW_ODD  = "#18122b"
 COLOR_SELECTED = "#0e7490"
 
 
@@ -225,7 +261,7 @@ class TranslatorApp(ctk.CTk):
         self.character_names: frozenset = frozenset()
         self._page = 0
         self._page_size = 100
-        self._selected_index: int | None = None
+        self._selected_indices: set[int] = set()
         self.translator: Translator | None = None
         self.settings: dict = {}
         self._load_settings()
@@ -348,9 +384,9 @@ class TranslatorApp(ctk.CTk):
                                               fg_color=COLOR_BTN_WARN, width=100, command=self._clear_cache)
         self.btn_clear_cache.pack(side="right", padx=6, pady=10)
 
-        self.btn_restore_translation = ctk.CTkButton(bottom, text=self.t("restore_translation"),
-                                                     fg_color=COLOR_BTN_WARN, width=140, command=self._restore_translation)
-        self.btn_restore_translation.pack(side="right", padx=6, pady=10)
+        self.btn_restore_backup = ctk.CTkButton(bottom, text=self.t("restore_backup"),
+                                                 fg_color=COLOR_BTN_WARN, width=140, command=self._restore_backup)
+        self.btn_restore_backup.pack(side="right", padx=6, pady=10)
 
         ctk.CTkButton(bottom, text=self.t("settings"), fg_color=COLOR_ACCENT,
                       width=100, command=self._open_settings).pack(side="right", padx=10, pady=10)
@@ -398,6 +434,17 @@ class TranslatorApp(ctk.CTk):
                                                    variable=self.search_scope_var, command=self._on_search_scope_change)
         self.search_scope_combo.pack(side="left", padx=4, pady=4)
 
+        self.select_all_var = ctk.StringVar(value="off")
+        self.select_all_checkbox = ctk.CTkCheckBox(search_frame, text=self.t("select_all"), variable=self.select_all_var,
+                                                   onvalue="on", offvalue="off", command=self._on_select_all)
+        self.select_all_checkbox.pack(side="left", padx=(8, 4), pady=4)
+
+        self.btn_delete_row = ctk.CTkButton(search_frame, text=self.t("delete_row"),
+                                            fg_color="#dc2626", hover_color="#b91c1c",
+                                            text_color="white", width=100, command=self._delete_selected_row)
+        self.btn_delete_row.pack(side="left", padx=(4, 8), pady=4)
+        self.btn_delete_row.configure(state="disabled")
+
         self.table_frame = ctk.CTkScrollableFrame(self.tab_strings, fg_color=COLOR_BG)
         self.table_frame.pack(fill="both", expand=True)
         self._build_table_header()
@@ -414,13 +461,17 @@ class TranslatorApp(ctk.CTk):
 
         btn_row = ctk.CTkFrame(self.editor_frame, fg_color="transparent")
         btn_row.pack(fill="x", padx=10, pady=(0, 6))
+        self.btn_replace_all = ctk.CTkButton(btn_row, text=self.t("replace_all"), width=100,
+                                             fg_color=COLOR_ACCENT, text_color="white", command=self._open_replace_dialog)
+        self.btn_replace_all.pack(side="left", padx=4)
+        self.btn_replace_all.configure(state="disabled")
         self.btn_edit_save = ctk.CTkButton(btn_row, text=self.t("save_edit"), width=100,
                                            fg_color=COLOR_BTN_MAIN, command=self._save_edit,
                                            state="disabled")
         self.btn_edit_save.pack(side="right")
 
     def _build_table_header(self):
-        cols = [("#", 40), ("Kind", 80), ("Speaker", 100), ("Original", 340), ("Translation", 340), ("File", 160)]
+        cols = [("", 40), ("#", 40), ("Kind", 80), ("Speaker", 100), ("Original", 320), ("Translation", 320), ("File", 140)]
         header = ctk.CTkFrame(self.table_frame, fg_color=COLOR_ACCENT)
         header.pack(fill="x", pady=(0, 2))
         for text, width in cols:
@@ -456,22 +507,31 @@ class TranslatorApp(ctk.CTk):
         start = self._page * self._page_size
         end = start + self._page_size
         page_items = items[start:end]
-        cols_w = [40, 80, 100, 340, 340, 160]
+        cols_w = [40, 40, 80, 100, 320, 320, 140]
         for i, item in enumerate(page_items):
             abs_i = start + i
-            bg = COLOR_BG if abs_i % 2 == 0 else COLOR_PANEL
-            if self._selected_index is not None and abs_i == self._selected_index:
+            bg = COLOR_ROW_EVEN if abs_i % 2 == 0 else COLOR_ROW_ODD
+            if abs_i in self._selected_indices:
                 bg = COLOR_SELECTED
             row = ctk.CTkFrame(self.table_rows_frame, fg_color=bg, height=28)
             row.pack(fill="x")
             row.pack_propagate(False)
+
+            # Checkbox
+            var = ctk.StringVar(value="on" if abs_i in self._selected_indices else "off")
+            chk = ctk.CTkCheckBox(row, text="", width=24, variable=var,
+                                  onvalue="on", offvalue="off")
+            chk.pack(side="left", padx=4)
+            chk.bind("<Button-1>", lambda event: "break")
+            chk.configure(command=lambda v=var, idx=abs_i: self._on_checkbox_toggle(idx, v))
+
             for val, w in [
-                (str(abs_i + 1), cols_w[0]),
-                (item.kind, cols_w[1]),
-                (item.speaker or "", cols_w[2]),
-                (item.text[:60], cols_w[3]),
-                (item.translated[:60] if item.translated else "", cols_w[4]),
-                (Path(item.file).name, cols_w[5]),
+                (str(abs_i + 1), cols_w[1]),
+                (item.kind, cols_w[2]),
+                (item.speaker or "", cols_w[3]),
+                (item.text[:60], cols_w[4]),
+                (item.translated[:60] if item.translated else "", cols_w[5]),
+                (Path(item.file).name, cols_w[6]),
             ]:
                 lbl = ctk.CTkLabel(row, text=val, width=w, anchor="w",
                                    text_color=COLOR_TEXT if item.translated else COLOR_SUBTEXT,
@@ -482,7 +542,8 @@ class TranslatorApp(ctk.CTk):
                 return lambda event: self._on_row_click(idx, it)
             row.bind("<Button-1>", _make_click())
             for child in row.winfo_children():
-                child.bind("<Button-1>", _make_click())
+                if child != chk:
+                    child.bind("<Button-1>", _make_click())
         # Pagination controls
         total_pages = max(1, (len(items) + self._page_size - 1) // self._page_size)
         pag = ctk.CTkFrame(self.table_rows_frame, fg_color=COLOR_PANEL, height=32)
@@ -537,20 +598,58 @@ class TranslatorApp(ctk.CTk):
         self.edit_text.delete("1.0", "end")
         self.edit_text.configure(state="disabled")
         self.btn_edit_save.configure(state="disabled")
-        self._selected_index = None
 
     def _on_row_click(self, abs_i: int, item: ExtractedString):
-        self._selected_index = abs_i
+        self._selected_indices.clear()
+        self._selected_indices.add(abs_i)
         self._render_page()
         self.edit_text.configure(state="normal")
         self.edit_text.delete("1.0", "end")
         self.edit_text.insert("end", item.translated if item.translated else "")
         self.btn_edit_save.configure(state="normal")
+        self.btn_delete_row.configure(state="normal")
+
+    def _on_checkbox_toggle(self, abs_i: int, checkbox_var: ctk.StringVar):
+        if checkbox_var.get() == "on":
+            self._selected_indices.add(abs_i)
+        else:
+            self._selected_indices.discard(abs_i)
+        self._render_page()
+        self.btn_delete_row.configure(state="normal" if self._selected_indices else "disabled")
+
+    def _on_select_all(self):
+        if self.select_all_var.get() == "on":
+            self._selected_indices = set(range(len(self._filtered)))
+        else:
+            self._selected_indices.clear()
+        self._render_page()
+        self.btn_delete_row.configure(state="normal" if self._selected_indices else "disabled")
+
+    def _delete_selected_row(self):
+        if not self._selected_indices:
+            return
+        if not messagebox.askyesno(self.t("delete_row"), f"Delete {len(self._selected_indices)} selected row(s)?"):
+            return
+        count = 0
+        for abs_i in sorted(self._selected_indices, reverse=True):
+            if abs_i < len(self._filtered):
+                item = self._filtered[abs_i]
+                if item in self.items:
+                    self.items.remove(item)
+                    count += 1
+        self._selected_indices.clear()
+        self._clear_editor()
+        self._apply_filter()
+        self.btn_delete_row.configure(state="disabled")
+        self.log(f"Deleted {count} row(s)")
 
     def _save_edit(self):
-        if self._selected_index is None or self._selected_index >= len(self._filtered):
+        if not self._selected_indices:
             return
-        item = self._filtered[self._selected_index]
+        selected_index = next(iter(self._selected_indices))
+        if selected_index >= len(self._filtered):
+            return
+        item = self._filtered[selected_index]
         new_text = self.edit_text.get("1.0", "end-1c")
         item.translated = new_text
         self._render_page()
@@ -559,6 +658,107 @@ class TranslatorApp(ctk.CTk):
         self.translator.update_cache(item.text, new_text)
         self.btn_save_translation.configure(state="normal")
         self.btn_export.configure(state="normal")
+
+    def _open_replace_dialog(self):
+        dialog = ctk.CTkToplevel(self)
+        dialog.title(self.t("replace_all_title"))
+        dialog.geometry("420x320")
+        dialog.configure(fg_color=COLOR_PANEL)
+        dialog.transient(self)
+        dialog.grab_set()
+
+        ctk.CTkLabel(dialog, text=self.t("replace_all_find"), text_color=COLOR_SUBTEXT).pack(anchor="w", padx=20, pady=(20, 4))
+        find_entry = ctk.CTkEntry(dialog, width=350)
+        find_entry.pack(padx=20, pady=(0, 12))
+
+        ctk.CTkLabel(dialog, text=self.t("replace_all_replace"), text_color=COLOR_SUBTEXT).pack(anchor="w", padx=20, pady=(0, 4))
+        replace_entry = ctk.CTkEntry(dialog, width=350)
+        replace_entry.pack(padx=20, pady=(0, 12))
+
+        case_sensitive_var = ctk.BooleanVar(value=False)
+        ctk.CTkCheckBox(dialog, text=self.t("replace_all_case"), variable=case_sensitive_var).pack(anchor="w", padx=20, pady=(0, 8))
+
+        filtered_only_var = ctk.BooleanVar(value=True)
+        ctk.CTkCheckBox(dialog, text=self.t("replace_all_filtered"), variable=filtered_only_var).pack(anchor="w", padx=20, pady=(0, 8))
+
+        scope_var = ctk.StringVar(value="translation")
+        scope_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        scope_frame.pack(anchor="w", padx=20, pady=(0, 12))
+        ctk.CTkLabel(scope_frame, text=self.t("replace_all_scope"), text_color=COLOR_SUBTEXT).pack(side="left")
+        ctk.CTkRadioButton(scope_frame, text=self.t("replace_all_scope_original"), variable=scope_var, value="original").pack(side="left", padx=(8, 4))
+        ctk.CTkRadioButton(scope_frame, text=self.t("replace_all_scope_translation"), variable=scope_var, value="translation").pack(side="left", padx=4)
+        ctk.CTkRadioButton(scope_frame, text=self.t("replace_all_scope_both"), variable=scope_var, value="both").pack(side="left", padx=4)
+
+        btn_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        btn_frame.pack(pady=20)
+
+        def do_replace():
+            import re as _re
+            find_text = find_entry.get().strip()
+            replace_text = replace_entry.get().strip()
+            if not find_text:
+                messagebox.showerror(self.t("error"), "Please enter text to find")
+                return
+            case_sensitive = case_sensitive_var.get()
+            only_filtered = filtered_only_var.get()
+            scope = scope_var.get()
+            target_items = self._filtered if only_filtered else self.items
+
+            count = 0
+            for item in target_items:
+                if scope == "original":
+                    text = item.text
+                    if case_sensitive:
+                        if find_text in text:
+                            item.text = text.replace(find_text, replace_text)
+                            count += 1
+                    else:
+                        if find_text.lower() in text.lower():
+                            pattern = _re.compile(_re.escape(find_text), _re.IGNORECASE)
+                            item.text = pattern.sub(replace_text, text)
+                            count += 1
+                elif scope == "translation":
+                    text = item.translated or ""
+                    if case_sensitive:
+                        if find_text in text:
+                            item.translated = text.replace(find_text, replace_text)
+                            count += 1
+                    else:
+                        if find_text.lower() in text.lower():
+                            pattern = _re.compile(_re.escape(find_text), _re.IGNORECASE)
+                            item.translated = pattern.sub(replace_text, text)
+                            count += 1
+                else:  # both
+                    if case_sensitive:
+                        if find_text in item.text:
+                            item.text = item.text.replace(find_text, replace_text)
+                            count += 1
+                        if item.translated and find_text in item.translated:
+                            item.translated = item.translated.replace(find_text, replace_text)
+                            count += 1
+                    else:
+                        if find_text.lower() in item.text.lower():
+                            pattern = _re.compile(_re.escape(find_text), _re.IGNORECASE)
+                            item.text = pattern.sub(replace_text, item.text)
+                            count += 1
+                        if item.translated and find_text.lower() in item.translated.lower():
+                            pattern = _re.compile(_re.escape(find_text), _re.IGNORECASE)
+                            item.translated = pattern.sub(replace_text, item.translated)
+                            count += 1
+
+            if count > 0:
+                self._render_page()
+                self.btn_save_translation.configure(state="normal")
+                self.btn_export.configure(state="normal")
+                messagebox.showinfo(self.t("replace_all_title"), self.t("replace_all_replaced").format(count))
+                dialog.destroy()
+            else:
+                messagebox.showinfo(self.t("replace_all_title"), self.t("replace_all_no_matches").format(len(target_items), scope))
+
+        ctk.CTkButton(btn_frame, text=self.t("replace_all"), fg_color=COLOR_BTN_SUCCESS, width=100,
+                      command=do_replace).pack(side="left", padx=4)
+        ctk.CTkButton(btn_frame, text=self.t("cancel"), fg_color=COLOR_BTN_WARN, width=100,
+                      command=dialog.destroy).pack(side="left", padx=4)
 
     # ─── Game Selection ────────────────────────────────────────────────────
 
@@ -837,6 +1037,8 @@ class TranslatorApp(ctk.CTk):
         can_save = bool(self.game_path and self.extractor and self.items)
         self.btn_save_translation.configure(state="normal" if can_save else "disabled")
         self.btn_export.configure(state="normal" if can_save else "disabled")
+        self.btn_replace_all.configure(state="normal" if can_save else "disabled")
+        self.btn_restore_backup.configure(state="normal" if self.game_path else "disabled")
 
     def _cancel(self):
         if self.translator:
@@ -856,7 +1058,7 @@ class TranslatorApp(ctk.CTk):
 
     def _save_translation_thread(self):
         try:
-            self.root_after(lambda: self._set_progress(0.5, "Saving translation..."))
+            self.root_after(lambda: self._set_progress(0.2, "Creating backup..."))
             lang_name = self.lang_var.get()
             lang_folder = lang_name.lower()
             translations = {i.text: i.translated for i in self.items if i.translated}
@@ -864,6 +1066,9 @@ class TranslatorApp(ctk.CTk):
                 self.root_after(lambda: messagebox.showinfo("", "Nessuna traduzione da salvare."))
                 self.root_after(lambda: self._on_work_done())
                 return
+            backup_tl_dir(self.extractor.game_dir, lang_folder)
+            self.log("Original backup created/verified.")
+            self.root_after(lambda: self._set_progress(0.5, "Saving translation..."))
             written = write_tl_files(self.extractor.game_dir, lang_folder, self.items, translations)
             splash_src = SCRIPT_DIR / "splash.png"
             activator = write_activator(self.extractor.game_dir, lang_folder, splash_src)
@@ -950,56 +1155,48 @@ class TranslatorApp(ctk.CTk):
         if self.translator:
             self.translator.cache = {}
 
-    def _restore_translation(self):
-        if not self.game_path or not self.extractor:
+    def _restore_backup(self):
+        if not self.game_path:
             messagebox.showerror(self.t("error"), self.t("no_game"))
             return
-
-        if not messagebox.askyesno(self.t("restore_translation_title"), self.t("restore_translation_confirm")):
+        if not messagebox.askyesno(self.t("restore_backup_title"), self.t("restore_backup_confirm")):
             return
+        try:
+            lang_name = self.lang_var.get()
+            lang_folder = lang_name.lower()
+            restored = restore_tl_backup(self.extractor.game_dir, lang_folder)
+            if restored is None:
+                messagebox.showinfo(self.t("restore_backup_title"), self.t("restore_backup_none"))
+                return
+            # Ricarica le traduzioni dalla cartella ripristinata
+            self._load_restored_translations(lang_folder)
+            msg = self.t("restore_backup_done").format(restored.name)
+            self.log(msg)
+            messagebox.showinfo(self.t("restore_backup_title"), msg)
+        except Exception as e:
+            err = str(e)
+            self.log(f"Error: {err}")
+            messagebox.showerror(self.t("error"), err)
 
-        files_removed = 0
-        strings_reset = 0
-
-        lang_name = self.lang_var.get()
-        lang_folder = lang_name.lower()
-        game_dir = self.extractor.game_dir
-
-        # Cancella game/tl/<lang>/
-        tl_dir = game_dir / "tl" / lang_folder
+    def _load_restored_translations(self, lang_folder: str):
+        """Ricarica le traduzioni ripristinate in memoria dagli items."""
+        if not self.extractor:
+            return
+        tl_dir = self.extractor.game_dir / "tl" / lang_folder
+        restored: dict[str, str] = {}
         if tl_dir.exists():
-            try:
-                for f in tl_dir.glob("*.rpy"):
-                    f.unlink()
-                    files_removed += 1
-                tl_dir.rmdir()
-                self.log(f"Removed TL directory: {tl_dir}")
-            except Exception as e:
-                self.log(f"Could not remove TL directory: {e}")
-
-        # Cancella renpy_translator_<lang>.rpy
-        activator_file = game_dir / f"renpy_translator_{lang_folder}.rpy"
-        if activator_file.exists():
-            try:
-                activator_file.unlink()
-                files_removed += 1
-                self.log(f"Removed activator: {activator_file}")
-            except Exception as e:
-                self.log(f"Could not remove activator: {e}")
-
-        # Resetta traduzioni in memoria
+            for f in tl_dir.glob("*.rpy"):
+                if f.name == "zz_runtime_filter.rpy":
+                    continue
+                text = f.read_text(encoding="utf-8")
+                # Estrae coppie old "..." / new "..."
+                import re as _re
+                for old, new in _re.findall(r'    old "(.*?)"\n    new "(.*?)"', text, _re.DOTALL):
+                    restored[old] = new
         for item in self.items:
-            if item.translated:
-                item.translated = ""
-                strings_reset += 1
-
-        msg = self.t("restore_translation_done").format(files_removed, strings_reset)
-        self.log(msg)
-        messagebox.showinfo(self.t("restore_translation_title"), msg)
-
+            if item.text in restored:
+                item.translated = restored[item.text]
         self._apply_filter()
-        self.btn_save_translation.configure(state="disabled")
-        self.btn_export.configure(state="disabled")
 
     # ─── Settings ──────────────────────────────────────────────────────────
 

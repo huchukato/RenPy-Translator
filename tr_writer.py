@@ -7,6 +7,7 @@ Scrive i file di traduzione in game/tl/<lang>/
 from __future__ import annotations
 from pathlib import Path
 import re
+import shutil
 
 _RE_ESCAPE = re.compile(r'([\\"])')
 _RE_HEX = re.compile(r"^#?[0-9a-fA-F]{3,8}$")
@@ -15,6 +16,83 @@ _RE_HEX = re.compile(r"^#?[0-9a-fA-F]{3,8}$")
 def _esc(s: str) -> str:
     s = _RE_ESCAPE.sub(r"\\\1", s)
     return s.replace("\n", "\\n").replace("\r", "").replace("\t", "\\t")
+
+
+ORIGINAL_BACKUP_NAME = "tl_bak_original"
+
+
+def _tl_dir(game_dir: Path, lang_code: str) -> Path:
+    return game_dir / "tl" / lang_code
+
+
+def _original_backup_dir(game_dir: Path) -> Path:
+    return game_dir / ORIGINAL_BACKUP_NAME
+
+
+def _legacy_backups(game_dir: Path) -> list[Path]:
+    return sorted(
+        (p for p in game_dir.glob("tl_bak_*")
+         if p.is_dir() and p.name != ORIGINAL_BACKUP_NAME),
+        key=lambda p: p.stat().st_mtime,
+    )
+
+
+def _original_backup(game_dir: Path) -> Path | None:
+    original = _original_backup_dir(game_dir)
+    if original.is_dir():
+        return original
+    backups = _legacy_backups(game_dir)
+    if not backups:
+        return None
+    backups[0].rename(original)
+    for backup in backups[1:]:
+        shutil.rmtree(backup)
+    return original
+
+
+def backup_tl_dir(game_dir: Path, lang_code: str) -> Path | None:
+    """
+    Crea un backup unico e originale della cartella game/tl/<lang_code>/ e del
+    file renpy_translator_<lang_code>.rpy se non esiste già.
+    """
+    tl_dir = _tl_dir(game_dir, lang_code)
+    activator = game_dir / f"renpy_translator_{lang_code}.rpy"
+
+    original = _original_backup(game_dir)
+    if original is None:
+        # Elimina eventuali backup legacy spuri
+        for backup in _legacy_backups(game_dir):
+            shutil.rmtree(backup)
+        # Se non c'è nulla da backuppare, non creare un backup vuoto
+        if not tl_dir.exists() and not activator.exists():
+            return None
+        original = _original_backup_dir(game_dir)
+        original.mkdir(parents=True, exist_ok=True)
+        if tl_dir.exists():
+            shutil.copytree(tl_dir, original / "tl" / lang_code)
+        if activator.exists():
+            shutil.copy2(activator, original / f"renpy_translator_{lang_code}.rpy")
+    return original
+
+
+def restore_tl_backup(game_dir: Path, lang_code: str) -> Path | None:
+    """Ripristina il backup originale della traduzione."""
+    original = _original_backup(game_dir)
+    if original is None:
+        return None
+    tl_dir = _tl_dir(game_dir, lang_code)
+    activator = game_dir / f"renpy_translator_{lang_code}.rpy"
+    if tl_dir.exists():
+        shutil.rmtree(tl_dir)
+    backup_tl = original / "tl" / lang_code
+    if backup_tl.exists():
+        shutil.copytree(backup_tl, tl_dir)
+    backup_activator = original / f"renpy_translator_{lang_code}.rpy"
+    if backup_activator.exists():
+        shutil.copy2(backup_activator, activator)
+    elif activator.exists():
+        activator.unlink()
+    return original
 
 
 def write_activator(game_dir: Path, lang_code: str, splash_src: Path | None = None) -> Path:
