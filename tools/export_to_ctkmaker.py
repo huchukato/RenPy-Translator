@@ -363,32 +363,70 @@ def main() -> None:
     if not docs:
         raise SystemExit("No buildable classes found in translator_tool.py")
 
-    OUTPUT.mkdir(parents=True, exist_ok=True)
-    (OUTPUT / "assets" / "images").mkdir(parents=True, exist_ok=True)
+    def page_filename(name: str) -> str:
+        base = name.lower().replace(" ", "_").replace("dialog", "").strip("_")
+        return f"{base or 'page'}.ctkproj"
 
-    # Copy assets
+    OUTPUT.mkdir(parents=True, exist_ok=True)
+    for sub in ("assets/pages", "assets/fonts", "assets/icons", "assets/images", "components", "scripts"):
+        (OUTPUT / sub).mkdir(parents=True, exist_ok=True)
+
+    # Copy assets and support files from the CTkMaker template project
+    template = Path("/Volumes/NVME/dev-ai/CTMaker/RenPy")
+    for src_name, dst_name in [
+        ("ctkmaker.py", "ctkmaker.py"),
+        ("pyrightconfig.json", "pyrightconfig.json"),
+        ("requirements.txt", "requirements.txt"),
+        (".gitignore", ".gitignore"),
+    ]:
+        src = template / src_name
+        if src.exists():
+            shutil.copy2(src, OUTPUT / dst_name)
+
     for img in (REPO_ROOT / "img").iterdir():
         if img.is_file():
             shutil.copy2(img, OUTPUT / "assets" / "images" / img.name)
 
-    # CTkMaker opens a single .ctkproj containing multiple documents
-    project_file = OUTPUT / "RenPy Translator.ctkproj"
-    project_file.write_text(
-        json.dumps(
-            {
-                "version": 2,
-                "active_document": docs[0]["id"],
-                "documents": docs,
-                "variables": [],
-                "name": "RenPy Translator",
-            },
-            indent=2,
-            ensure_ascii=False,
-        ),
+    # Remove legacy single .ctkproj if present
+    legacy = OUTPUT / "RenPy Translator.ctkproj"
+    if legacy.exists():
+        legacy.unlink()
+
+    # Write one .ctkproj per document, mimicking CTkMaker multi-page layout
+    pages = []
+    for doc in docs:
+        page_file = page_filename(doc["name"])
+        page_id = str(uuid.uuid4())
+        (OUTPUT / "assets" / "pages" / page_file).write_text(
+            json.dumps(
+                {
+                    "version": 2,
+                    "active_document": doc["id"],
+                    "documents": [doc],
+                    "variables": [],
+                    "name": doc["name"],
+                },
+                indent=2,
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        pages.append({"id": page_id, "file": page_file, "name": doc["name"]})
+
+    project_meta = {
+        "version": 1,
+        "name": "RenPy Translator",
+        "active_page": pages[0]["id"],
+        "pages": pages,
+        "font_defaults": {},
+        "system_fonts": [],
+    }
+    (OUTPUT / "project.json").write_text(
+        json.dumps(project_meta, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
 
-    print(f"Exported {len(docs)} document(s) to {project_file}")
+    print(f"Exported {len(docs)} page(s) to {OUTPUT}")
 
 
 if __name__ == "__main__":
