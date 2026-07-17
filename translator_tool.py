@@ -449,7 +449,7 @@ class TranslatorApp(ctk.CTk):
         self.table_frame.pack(fill="both", expand=True)
         self._build_table_header()
 
-        self.editor_frame = ctk.CTkFrame(self.tab_strings, fg_color=COLOR_PANEL, height=120)
+        self.editor_frame = ctk.CTkFrame(self.tab_strings, fg_color=COLOR_PANEL, height=160)
         self.editor_frame.pack(side="bottom", fill="x", padx=8, pady=8)
         self.editor_frame.pack_propagate(False)
 
@@ -1256,22 +1256,23 @@ class TranslatorApp(ctk.CTk):
     def _set_icon(self):
         if not PIL_OK:
             return
-        icon_path = SCRIPT_DIR / "logo_48.png"
+        icon_path = SCRIPT_DIR / "img" / "logo_48.png"
         if icon_path.exists():
             try:
                 img = Image.open(icon_path)
-                self.iconphoto(True, ImageTk.PhotoImage(img))
+                self._icon_img = ImageTk.PhotoImage(img)
+                self.iconphoto(True, self._icon_img)
             except Exception:
                 pass
 
     def _set_logo(self, parent):
         if not PIL_OK:
             return
-        logo_path = SCRIPT_DIR / "logo_48.png"
+        logo_path = SCRIPT_DIR / "img" / "logo_48.png"
         if logo_path.exists():
             try:
-                img = ctk.CTkImage(Image.open(logo_path), size=(48, 48))
-                self.logo_label.configure(image=img)
+                self._logo_img = ctk.CTkImage(Image.open(logo_path), size=(48, 48))
+                self.logo_label.configure(image=self._logo_img)
             except Exception:
                 pass
 
