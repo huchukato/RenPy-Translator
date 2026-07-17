@@ -6,5 +6,6 @@ __pycache__/
 translator_settings.json
 dist/
 build.sh
+!build/build.sh
 logo.png
 uv.lock
