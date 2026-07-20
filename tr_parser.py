@@ -198,9 +198,9 @@ def parse_rpy_file(file_path: Path, rel_from: Path, translate_menu: bool = True)
             else:
                 m_wt = _RE_WT_MENU.search(raw)
                 if m_wt:
-                    for t in (m_wt.group(2), m_wt.group(4)):
-                        if t and _ok(t) and t not in seen_texts:
-                            seen_texts.add(t); results.append(ExtractedString("choice", t, rel, idx, None))
+                    t = m_wt.group(4)
+                    if t and _ok(t) and t not in seen_texts:
+                        seen_texts.add(t); results.append(ExtractedString("choice", t, rel, idx, None))
                 continue
 
         if translate_menu and not ui_only and _RE_MENU.match(raw):
