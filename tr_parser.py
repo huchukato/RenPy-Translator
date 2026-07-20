@@ -40,6 +40,8 @@ _RE_GETTEXT = re.compile(r'\b_\(\s*"((?:[^\\"]|\\.)*)"\s*\)')  # _("...") Ren'Py
 _RE_WT_MENU = re.compile(
     r'\(\s*["\'][^"\']+["\']\s*,\s*\d+\s*,\s*(["\'])(.+?)\1\s*\)\s*:\s*(["\'])(.+?)\3'
 )  # WT Mod: ("file.rpy", 123, "Choice"): "Choice ([tag]hint)",
+_RE_WT_COLOR = re.compile(r'^\s*(r_[A-Za-z_]\w*)\s*=\s*(["\'])(.+?)\2')
+_RE_WT_COLOR_PLACEHOLDER = re.compile(r'\[(r_[A-Za-z_]\w*)\]')
 _SKIP_FILES = {"options.rpy", "gui.rpy", "images.rpy"}  # file tecnici da ignorare completamente
 _UI_FILES = {"screens.rpy"}  # parsare SOLO per UI string (textbutton/text/label)
 _TECH_WORDS = frozenset({
@@ -135,6 +137,7 @@ def parse_rpy_file(file_path: Path, rel_from: Path, translate_menu: bool = True)
     lines = content.splitlines()
     results: list[ExtractedString] = []
     seen_texts: set[str] = set()
+    wt_colors: dict[str, str] = {}
 
     in_menu = False; menu_ind = 0
     in_tl = False; tl_ind = 0
@@ -196,9 +199,13 @@ def parse_rpy_file(file_path: Path, rel_from: Path, translate_menu: bool = True)
             if _indent(raw) <= tech_ind and not raw.lstrip().startswith('#'):
                 in_tech = False
             else:
+                m_col = _RE_WT_COLOR.match(raw)
+                if m_col:
+                    wt_colors[m_col.group(1)] = m_col.group(3)
                 m_wt = _RE_WT_MENU.search(raw)
                 if m_wt:
                     t = m_wt.group(4)
+                    t = _RE_WT_COLOR_PLACEHOLDER.sub(lambda m: wt_colors.get(m.group(1), m.group(0)), t)
                     if t and _ok(t) and t not in seen_texts:
                         seen_texts.add(t); results.append(ExtractedString("choice", t, rel, idx, None))
                 continue
