@@ -37,6 +37,9 @@ _RE_DEFINE = re.compile(r'^\s*define\s+')
 _RE_RENPY_INPUT = re.compile(r'renpy\.input\(\s*(["\'])(.+?)\1')
 _RE_RPY_TAG = re.compile(r'\{[^}]*\}')    # tag Ren'Py tipo {i}, {/i}, {color=#fff}
 _RE_GETTEXT = re.compile(r'\b_\(\s*"((?:[^\\"]|\\.)*)"\s*\)')  # _("...") Ren'Py i18n
+_RE_WT_MENU = re.compile(
+    r'\(\s*["\'][^"\']+["\']\s*,\s*\d+\s*,\s*(["\'])(.+?)\1\s*\)\s*:\s*(["\'])(.+?)\3'
+)  # WT Mod: ("file.rpy", 123, "Choice"): "Choice ([tag]hint)",
 _SKIP_FILES = {"options.rpy", "gui.rpy", "images.rpy"}  # file tecnici da ignorare completamente
 _UI_FILES = {"screens.rpy"}  # parsare SOLO per UI string (textbutton/text/label)
 _TECH_WORDS = frozenset({
@@ -193,6 +196,11 @@ def parse_rpy_file(file_path: Path, rel_from: Path, translate_menu: bool = True)
             if _indent(raw) <= tech_ind and not raw.lstrip().startswith('#'):
                 in_tech = False
             else:
+                m_wt = _RE_WT_MENU.search(raw)
+                if m_wt:
+                    for t in (m_wt.group(2), m_wt.group(4)):
+                        if t and _ok(t) and t not in seen_texts:
+                            seen_texts.add(t); results.append(ExtractedString("choice", t, rel, idx, None))
                 continue
 
         if translate_menu and not ui_only and _RE_MENU.match(raw):
