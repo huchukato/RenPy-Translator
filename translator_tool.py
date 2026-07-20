@@ -502,10 +502,7 @@ class TranslatorApp(ctk.CTk):
                       command=self._on_option_change,
                       onvalue=True, offvalue=False).pack(side="left", padx=10, pady=8)
 
-        self.translate_ui_var = ctk.BooleanVar(value=self.settings.get("translate_ui", True))
-        ctk.CTkSwitch(opts, text="Translate Menu", variable=self.translate_ui_var,
-                      command=self._on_option_change,
-                      onvalue=True, offvalue=False).pack(side="left", padx=10, pady=8)
+        # UI strings are always translated; no separate switch needed
 
     def _build_strings_tab(self):
         # Search bar
@@ -909,13 +906,13 @@ class TranslatorApp(ctk.CTk):
             self.log("Phase 3: Parsing .rpy files...")
             self.root_after(lambda: self._set_progress(0.25, "Parsing..."))
             rpy_files = self.extractor.get_rpy_files()
-            translate_ui = bool(self.translate_ui_var.get())
+            # UI strings are always extracted
             self.character_names = frozenset(extract_character_names(self.extractor.game_dir))
             self.log(f"Characters found: {', '.join(sorted(self.character_names)[:10])}{'...' if len(self.character_names) > 10 else ''}")
             items = []
             seen_global: set[str] = set()
             for f in rpy_files:
-                for item in parse_rpy_file(f, self.extractor.game_dir, translate_ui):
+                for item in parse_rpy_file(f, self.extractor.game_dir):
                     if item.text in seen_global:
                         continue
                     if self.character_names and item.text in self.character_names:
@@ -984,13 +981,13 @@ class TranslatorApp(ctk.CTk):
             self.root_after(lambda: self.progress.set(0.6))
 
             rpy_files = self.extractor.get_rpy_files()
-            translate_ui = bool(self.translate_ui_var.get())
+            # UI strings are always extracted
             self.character_names = frozenset(extract_character_names(self.extractor.game_dir))
             self.log(f"Characters found: {', '.join(sorted(self.character_names)[:10])}{'...' if len(self.character_names) > 10 else ''}")
             items = []
             seen_global: set[str] = set()
             for f in rpy_files:
-                for item in parse_rpy_file(f, self.extractor.game_dir, translate_ui):
+                for item in parse_rpy_file(f, self.extractor.game_dir):
                     if item.text in seen_global:
                         continue
                     if self.character_names and item.text in self.character_names:
@@ -1038,7 +1035,6 @@ class TranslatorApp(ctk.CTk):
 
     def _on_option_change(self):
         self.settings["preserve_names"] = bool(self.preserve_names_var.get())
-        self.settings["translate_ui"] = bool(self.translate_ui_var.get())
         self._save_settings()
 
     def _make_config(self) -> TranslatorConfig:
@@ -1061,7 +1057,6 @@ class TranslatorApp(ctk.CTk):
             llama_model_file=s.get("llama_model_file", ""),
             translation_profile=self.profile_var.get(),
             preserve_names=bool(self.preserve_names_var.get()),
-            translate_menu=bool(self.translate_ui_var.get()),  # usato da TranslatorConfig
             character_names=self.character_names,
         )
 

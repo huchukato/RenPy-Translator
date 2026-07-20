@@ -124,8 +124,7 @@ def parse_rpy_file(file_path: Path, rel_from: Path, translate_ui: bool = True) -
     if file_path.name in _SKIP_FILES:
         return []
     ui_only = file_path.name in _UI_FILES  # screens.rpy: solo textbutton/text/label
-    if ui_only:
-        translate_ui = True
+    translate_ui = True  # UI va sempre tradotta
     rel = str(file_path.relative_to(rel_from)).replace("\\", "/")
     try:
         content = file_path.read_text(encoding="utf-8", errors="replace")
@@ -182,7 +181,7 @@ def parse_rpy_file(file_path: Path, rel_from: Path, translate_ui: bool = True) -
             if _indent(raw) <= screen_ind and not raw.lstrip().startswith('#'):
                 in_screen = False
             else:
-                if translate_ui and _RE_UI.match(raw):
+                if _RE_UI.match(raw):
                     t = _first_quoted(raw)
                     if t and _ok(t) and t not in seen_texts:
                         seen_texts.add(t); results.append(ExtractedString("ui", t, rel, idx, None))
@@ -248,7 +247,7 @@ def parse_rpy_file(file_path: Path, rel_from: Path, translate_ui: bool = True) -
                     seen_texts.add(t); results.append(ExtractedString("narration", t, rel, idx, None))
                 continue
 
-        if translate_ui and _RE_UI.match(raw):
+        if _RE_UI.match(raw):
             t = _first_quoted(raw)
             if t and _ok(t) and t not in seen_texts:
                 seen_texts.add(t); results.append(ExtractedString("ui", t, rel, idx, None))
