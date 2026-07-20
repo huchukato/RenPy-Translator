@@ -314,33 +314,6 @@ init 9999 python:
     (tl_dir / "zz_runtime_replace.rpy").write_text(rpy, encoding="utf-8")
 
 
-def patch_wtmod_i18n(game_dir: Path) -> Path | None:
-    """
-    Patcha walkthrough_mod_0_9_0.rpy affinché textbutton display_caption
-    passi per _(), permettendo traduzione e interpolazione dei colori.
-    """
-    f = game_dir / "walkthrough_mod_0_9_0.rpy"
-    if not f.exists():
-        return None
-    content = f.read_text(encoding="utf-8", errors="replace")
-    original = content
-    patched = re.sub(
-        r'^(\s*)textbutton\s+display_caption(\s+)',
-        r'\1textbutton _(display_caption)\2',
-        content,
-        flags=re.MULTILINE
-    )
-    if patched == original:
-        return None
-    backup_dir = game_dir.parent / _BACKUPS_DIR / "wtmod_patches"
-    backup_dir.mkdir(parents=True, exist_ok=True)
-    backup = backup_dir / f.name
-    if not backup.exists():
-        backup.write_text(original, encoding="utf-8")
-    f.write_text(patched, encoding="utf-8")
-    return f
-
-
 def write_tl_files(
     game_dir: Path,
     lang_code: str,
@@ -352,7 +325,6 @@ def write_tl_files(
     - Menu: formato nativo  translate <lang> <id>:\n    "testo tradotto"
     - Dialoghi/UI: formato  translate <lang> strings:\n    old "..."\n    new "..."
     """
-    patch_wtmod_i18n(game_dir)
     tl_dir = game_dir / "tl" / lang_code
     if tl_dir.exists():
         for f in tl_dir.glob("*.rpy"):
