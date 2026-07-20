@@ -286,6 +286,12 @@ def write_wt_replace_text(
         for o, n in zip(old_segs, new_segs):
             if o and o != n:
                 segments[o.strip()] = n.strip()
+                # Variant without trailing punctuation/space so KeywordProcessor can match the word
+                _wt_trail = " .,;:!?(){}\"'"
+                o_trim = o.strip().rstrip(_wt_trail)
+                n_trim = n.strip().rstrip(_wt_trail)
+                if o_trim and o_trim != o.strip() and o_trim not in segments:
+                    segments[o_trim] = n_trim
     if not segments:
         return
     (tl_dir / "strings.json").write_text(
