@@ -26,7 +26,7 @@ _NON_DIALOGUE = {"scene", "show", "hide", "play", "stop", "queue", "voice",
 _RE_MENU = re.compile(r'^\s*menu\b.*:\s*$')
 _RE_COMMENT = re.compile(r'^\s*#')
 _RE_TRANSLATE = re.compile(r'^(\s*)translate\s+\w+\s+.*:\s*$')
-_RE_SCREEN = re.compile(r'^\s*screen\s+\w+\b.*:\s*$')
+_RE_SCREEN = re.compile(r'^\s*(?:init\s+\d+\s+)?screen\s+\w+\b.*:\s*$')
 _RE_SAY = re.compile(r'^(\s*)([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*|[\'"][^\'\"]+[\'"])\s+"')
 _RE_UI = re.compile(r'^\s*(textbutton|text|label|tooltip)\s+(?:_\()?"')
 _RE_DEFAULT = re.compile(r'^\s*default\s+(\w+)\s*=\s*"')
