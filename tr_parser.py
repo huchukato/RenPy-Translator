@@ -120,11 +120,10 @@ def _ok(text: str) -> bool:
     return True
 
 
-def parse_rpy_file(file_path: Path, rel_from: Path, translate_ui: bool = True) -> list[ExtractedString]:
+def parse_rpy_file(file_path: Path, rel_from: Path, translate_menu: bool = True) -> list[ExtractedString]:
     if file_path.name in _SKIP_FILES:
         return []
     ui_only = file_path.name in _UI_FILES  # screens.rpy: solo textbutton/text/label
-    translate_ui = True  # UI va sempre tradotta
     rel = str(file_path.relative_to(rel_from)).replace("\\", "/")
     try:
         content = file_path.read_text(encoding="utf-8", errors="replace")
@@ -196,7 +195,7 @@ def parse_rpy_file(file_path: Path, rel_from: Path, translate_ui: bool = True) -
             else:
                 continue
 
-        if not ui_only and _RE_MENU.match(raw):
+        if translate_menu and not ui_only and _RE_MENU.match(raw):
             in_menu = True; menu_ind = _indent(raw); continue
         if in_menu:
             if _indent(raw) <= menu_ind and not raw.lstrip().startswith('#'):
