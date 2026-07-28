@@ -9,11 +9,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Literal
 import json
+import logging
 import random
 import re
 import threading
 import time
 import requests
+
+logger = logging.getLogger(__name__)
 
 try:
     from deep_translator import GoogleTranslator
@@ -432,7 +435,7 @@ class Translator:
         "en-US,en;q=0.9", "en-US,en;q=0.9,es;q=0.8",
         "en-GB,en;q=0.9", "en-CA,en-US;q=0.7,en;q=0.3",
     ]
-    _BING_CHAR_LIMIT = 1500  # limite API Bing pubblica (massimo ragionevole con fallback)
+    _BING_CHAR_LIMIT = 950  # limite API Bing pubblica (UltraRenpyTranslator usa 950)
     _BING_SEP = "\n<<<SEP>>>\n"  # separatore univoco — Bing non traduce i token <<<>>>
 
     class _BingSession:
@@ -477,9 +480,16 @@ class Translator:
         def is_available(self) -> bool:
             return time.time() >= self.cooldown_until
 
-        def _set_cooldown(self, is_429: bool = False, is_timeout: bool = False):
+        def _set_cooldown(self, is_429: bool = False, is_timeout: bool = False, is_404: bool = False):
             self.fail_count += 1
-            base = 2.0 if is_429 else (1.0 if is_timeout else 0.5)
+            if is_404:
+                base = 1.5
+            elif is_429:
+                base = 2.0
+            elif is_timeout:
+                base = 1.0
+            else:
+                base = 0.5
             self.cooldown_until = time.time() + base * (self._BASE_BACKOFF ** self.fail_count)
 
         def _mark_success(self):
@@ -506,20 +516,29 @@ class Translator:
                         data=data,
                         timeout=timeout_s,
                     )
+                    if r.status_code == 429:
+                        logger.warning(f"Bing {self.base_url} 429 (len={len(data['text'])})")
+                        self._set_cooldown(is_429=True)
+                        if attempt < 2:
+                            time.sleep(0.5 * (self._BASE_BACKOFF ** attempt))
+                        continue
+                    if r.status_code == 404 or r.status_code >= 500:
+                        logger.warning(f"Bing {self.base_url} {r.status_code}: {r.text[:120]}")
+                        self._set_cooldown(is_404=(r.status_code == 404))
+                        if attempt < 2:
+                            time.sleep(0.3 * (self._BASE_BACKOFF ** attempt))
+                        continue
                     r.raise_for_status()
                     result = r.json()[0]["translations"][0]["text"]
                     self._mark_success()
                     return result
-                except requests.exceptions.HTTPError as e:
-                    is_429 = e.response is not None and e.response.status_code == 429
-                    self._set_cooldown(is_429=is_429)
-                    if attempt < 2:
-                        time.sleep(0.3 * (self._BASE_BACKOFF ** attempt))
                 except requests.exceptions.Timeout:
+                    logger.warning(f"Bing {self.base_url} timeout (len={len(data['text'])})")
                     self._set_cooldown(is_timeout=True)
                     if attempt < 2:
                         time.sleep(0.5 * (self._BASE_BACKOFF ** attempt))
-                except Exception:
+                except Exception as e:
+                    logger.warning(f"Bing {self.base_url} error: {type(e).__name__}: {e}")
                     self._set_cooldown()
                     if attempt < 2:
                         time.sleep(0.3 * (self._BASE_BACKOFF ** attempt))
