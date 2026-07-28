@@ -451,19 +451,34 @@ class Translator:
             self.cooldown_until = 0.0
             self.fail_count = 0
             self.success_count = 0
-            self._client = requests.Session()
-            from requests.adapters import HTTPAdapter
-            adapter = HTTPAdapter(pool_connections=20, pool_maxsize=20)
-            self._client.mount("https://", adapter)
-            self._client.headers.update({
-                "User-Agent": Translator._BING_USER_AGENTS[idx % len(Translator._BING_USER_AGENTS)],
-                "Accept-Language": Translator._BING_ACCEPT_LANGS[idx % len(Translator._BING_ACCEPT_LANGS)],
-            })
+            self._use_httpx = HTTPX_OK
+            if self._use_httpx:
+                limits = httpx.Limits(max_keepalive_connections=20, max_connections=20)
+                self._client = httpx.Client(
+                    limits=limits,
+                    timeout=httpx.Timeout(30.0, connect=10.0),
+                    headers={
+                        "User-Agent": Translator._BING_USER_AGENTS[idx % len(Translator._BING_USER_AGENTS)],
+                        "Accept-Language": Translator._BING_ACCEPT_LANGS[idx % len(Translator._BING_ACCEPT_LANGS)],
+                    },
+                )
+            else:
+                self._client = requests.Session()
+                from requests.adapters import HTTPAdapter
+                adapter = HTTPAdapter(pool_connections=20, pool_maxsize=20)
+                self._client.mount("https://", adapter)
+                self._client.headers.update({
+                    "User-Agent": Translator._BING_USER_AGENTS[idx % len(Translator._BING_USER_AGENTS)],
+                    "Accept-Language": Translator._BING_ACCEPT_LANGS[idx % len(Translator._BING_ACCEPT_LANGS)],
+                })
             self._refresh_token()
 
         def _refresh_token(self):
             try:
-                home = self._client.get(f"{self.base_url}/translator", timeout=10)
+                if self._use_httpx:
+                    home = self._client.get(f"{self.base_url}/translator", timeout=10.0)
+                else:
+                    home = self._client.get(f"{self.base_url}/translator", timeout=10)
                 html = home.text
                 m_ig = re.search(r'IG:"([0-9A-F]+)"', html)
                 m_abuse = re.search(
@@ -506,16 +521,25 @@ class Translator:
                 "token": self.token,
                 "key": self.key,
             }
+            _timeout_exc = (requests.exceptions.Timeout, httpx.TimeoutException) if HTTPX_OK else (requests.exceptions.Timeout,)
             for attempt in range(3):
                 if not self.is_available():
                     break
                 try:
-                    r = self._client.post(
-                        f"{self.base_url}/ttranslatev3",
-                        params={"isVertical": "1", "IG": self.ig, "IID": "translator.5024"},
-                        data=data,
-                        timeout=timeout_s,
-                    )
+                    if self._use_httpx:
+                        r = self._client.post(
+                            f"{self.base_url}/ttranslatev3",
+                            params={"isVertical": "1", "IG": self.ig, "IID": "translator.5024"},
+                            data=data,
+                            timeout=timeout_s,
+                        )
+                    else:
+                        r = self._client.post(
+                            f"{self.base_url}/ttranslatev3",
+                            params={"isVertical": "1", "IG": self.ig, "IID": "translator.5024"},
+                            data=data,
+                            timeout=timeout_s,
+                        )
                     if r.status_code == 429:
                         logger.warning(f"Bing {self.base_url} 429 (len={len(data['text'])})")
                         self._set_cooldown(is_429=True)
@@ -532,7 +556,7 @@ class Translator:
                     result = r.json()[0]["translations"][0]["text"]
                     self._mark_success()
                     return result
-                except requests.exceptions.Timeout:
+                except _timeout_exc:
                     logger.warning(f"Bing {self.base_url} timeout (len={len(data['text'])})")
                     self._set_cooldown(is_timeout=True)
                     if attempt < 2:
