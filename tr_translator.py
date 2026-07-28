@@ -494,15 +494,21 @@ class Translator:
         except (KeyError, IndexError, json.JSONDecodeError) as e:
             raise TranslationError(f"Bing API risposta non valida ({r.status_code}): {r.text[:200]}") from e
 
-    def _bing_translate_chunk(self, session, chunk_text: str, src: str, tgt: str,
-                              ig: str, key: str, token: str,
+    def _bing_translate_chunk(self, chunk_text: str, src: str, tgt: str,
+                              session_tuple: tuple | None = None,
                               base_url: str = "https://www.bing.com") -> list[str]:
         """Traduce un chunk multi-stringa. Fallback 1-per-1 se lo split non torna."""
+        if session_tuple is None:
+            session_tuple = self._bing_make_session(base_url=base_url)
+        session, ig, key, token = session_tuple
         n_expected = chunk_text.count(self._BING_SEP) + 1
-        raw = self._bing_post(session, chunk_text, src, tgt, ig, key, token, base_url)
-        parts = raw.split(self._BING_SEP)
-        if len(parts) == n_expected:
-            return parts
+        try:
+            raw = self._bing_post(session, chunk_text, src, tgt, ig, key, token, base_url)
+            parts = raw.split(self._BING_SEP)
+            if len(parts) == n_expected:
+                return parts
+        except Exception:
+            pass
         # Fallback: ritraduce le singole stringhe originali
         originals = chunk_text.split(self._BING_SEP)
         results = []
@@ -516,50 +522,64 @@ class Translator:
     def _bing(self, texts: list[str], progress_cb=None, done_offset=0, total=0) -> list[str]:
         """Bing standard — una sessione, chunk multi-stringa."""
         src, tgt = self.cfg.source_lang, self.cfg.target_lang
-        session, ig, key, token = self._bing_make_session()
+        session_tuple = self._bing_make_session()
         results = list(texts)
         done = done_offset
         for indices, chunk_text in self._bing_split_chunks(texts):
-            try:
-                parts = self._bing_translate_chunk(session, chunk_text, src, tgt, ig, key, token)
+            parts = self._bing_translate_chunk(chunk_text, src, tgt, session_tuple)
+            if parts:
                 for i, p in zip(indices, parts):
-                    results[i] = p.strip()
-            except Exception:
-                pass
+                    if p:
+                        results[i] = p.strip()
             done += len(indices)
             if progress_cb and total:
                 progress_cb(min(done, total), total)
         return results
 
     def _bing_turbo(self, texts: list[str], progress_cb=None, done_offset=0, total=0) -> list[str]:
-        """Bing Turbo — sessioni parallele secondo profilo, chunk multi-stringa per sessione."""
+        """Bing Turbo — sessioni parallele secondo profilo, chunk multi-stringa."""
         from concurrent.futures import ThreadPoolExecutor, as_completed
         import threading
         src, tgt = self.cfg.source_lang, self.cfg.target_lang
-        n, _ = self._turbo_profile()
-        n = max(3, min(n, 6))
-        sessions = [self._bing_make_session(idx=i) for i in range(n)]
+        workers, _ = self._turbo_profile()
+        workers = max(3, min(workers, 6))
+        thread_local = threading.local()
         chunks = self._bing_split_chunks(texts)
         results = list(texts)
         done_count = [done_offset]
         lock = threading.Lock()
 
         def do_chunk(chunk_idx_data):
-            chunk_idx, (indices, chunk_text) = chunk_idx_data
-            sess, ig, key, token = sessions[chunk_idx % n]
-            try:
-                parts = self._bing_translate_chunk(sess, chunk_text, src, tgt, ig, key, token)
-                return indices, parts
-            except Exception:
-                return indices, None
+            _, (indices, chunk_text) = chunk_idx_data
+            session_tuple = getattr(thread_local, "bing_session", None)
+            if session_tuple is None:
+                session_tuple = self._bing_make_session(idx=random.randint(0, 999))
+                thread_local.bing_session = session_tuple
+            parts = self._bing_translate_chunk(chunk_text, src, tgt, session_tuple)
+            if len(parts) != len(indices):
+                originals = chunk_text.split(self._BING_SEP)
+                parts = []
+                for orig in originals:
+                    try:
+                        p = self._bing_translate_chunk(orig, src, tgt, session_tuple)
+                        parts.append(p[0] if p else orig)
+                    except Exception:
+                        parts.append(orig)
+            return indices, parts
 
-        with ThreadPoolExecutor(max_workers=n) as ex:
-            futures = [ex.submit(do_chunk, (i, c)) for i, c in enumerate(chunks)]
-            for f in as_completed(futures):
-                indices, parts = f.result()
-                if parts:
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            futures = {ex.submit(do_chunk, item): item for item in enumerate(chunks)}
+            for fut in as_completed(futures):
+                if self.cancelled:
+                    ex.shutdown(wait=False, cancel_futures=True)
+                    raise TranslationError("Traduzione annullata.")
+                try:
+                    indices, parts = fut.result()
                     for i, p in zip(indices, parts):
-                        results[i] = p.strip()
+                        if p:
+                            results[i] = p.strip()
+                except Exception:
+                    pass
                 with lock:
                     done_count[0] += len(indices)
                     if progress_cb and total:
@@ -581,18 +601,16 @@ class Translator:
 
         def do_chunk(chunk_idx_data):
             chunk_idx, (indices, chunk_text) = chunk_idx_data
-            sess, ig, key, token = sessions[chunk_idx % len(sessions)]
+            session_tuple = sessions[chunk_idx % len(sessions)]
             base = bases[chunk_idx % len(bases)]
-            try:
-                parts = self._bing_translate_chunk(sess, chunk_text, src, tgt, ig, key, token, base)
-                return indices, parts
-            except Exception:
-                try:
-                    s, g, k, tk = sessions[0]
-                    parts = self._bing_translate_chunk(s, chunk_text, src, tgt, g, k, tk)
-                    return indices, parts
-                except Exception:
-                    return indices, None
+            parts = self._bing_translate_chunk(chunk_text, src, tgt, session_tuple, base)
+            if len(parts) != len(indices):
+                originals = chunk_text.split(self._BING_SEP)
+                parts = []
+                for orig in originals:
+                    p = self._bing_translate_chunk(orig, src, tgt, sessions[0], base)
+                    parts.append(p[0] if p else orig)
+            return indices, parts
 
         with ThreadPoolExecutor(max_workers=workers) as ex:
             futures = [ex.submit(do_chunk, (i, c)) for i, c in enumerate(chunks)]
