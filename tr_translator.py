@@ -473,7 +473,6 @@ class Translator:
                     limits=limits,
                     timeout=httpx.Timeout(30.0, connect=10.0),
                     headers=headers,
-                    http2=True,
                     follow_redirects=True,
                 )
             else:
