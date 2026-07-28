@@ -426,7 +426,7 @@ class Translator:
         "en-US,en;q=0.9", "en-US,en;q=0.9,es;q=0.8",
         "en-GB,en;q=0.9", "en-CA,en-US;q=0.7,en;q=0.3",
     ]
-    _BING_CHAR_LIMIT = 2000  # limite API Bing pubblica (aumentato per ridurre le chiamate)
+    _BING_CHAR_LIMIT = 1000  # limite API Bing pubblica (tornato a valore sicuro)
     _BING_SEP = "\n<<<SEP>>>\n"  # separatore univoco — Bing non traduce i token <<<>>>
 
     def _bing_make_session(self, base_url: str = "https://www.bing.com", idx: int = 0) -> tuple:
