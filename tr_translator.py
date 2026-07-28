@@ -426,7 +426,7 @@ class Translator:
         "en-US,en;q=0.9", "en-US,en;q=0.9,es;q=0.8",
         "en-GB,en;q=0.9", "en-CA,en-US;q=0.7,en;q=0.3",
     ]
-    _BING_CHAR_LIMIT = 900   # limite reale API pubblica Bing (~1000 char, usiamo 900 per sicurezza)
+    _BING_CHAR_LIMIT = 2000  # limite API Bing pubblica (aumentato per ridurre le chiamate)
     _BING_SEP = "\n<<<SEP>>>\n"  # separatore univoco — Bing non traduce i token <<<>>>
 
     def _bing_make_session(self, base_url: str = "https://www.bing.com", idx: int = 0) -> tuple:
@@ -532,11 +532,12 @@ class Translator:
         return results
 
     def _bing_turbo(self, texts: list[str], progress_cb=None, done_offset=0, total=0) -> list[str]:
-        """Bing Turbo — 3 sessioni parallele, chunk multi-stringa per sessione."""
+        """Bing Turbo — sessioni parallele secondo profilo, chunk multi-stringa per sessione."""
         from concurrent.futures import ThreadPoolExecutor, as_completed
         import threading
         src, tgt = self.cfg.source_lang, self.cfg.target_lang
-        n = 3
+        n, _ = self._turbo_profile()
+        n = max(3, min(n, 6))
         sessions = [self._bing_make_session(idx=i) for i in range(n)]
         chunks = self._bing_split_chunks(texts)
         results = list(texts)
