@@ -426,13 +426,16 @@ class Translator:
         "en-US,en;q=0.9", "en-US,en;q=0.9,es;q=0.8",
         "en-GB,en;q=0.9", "en-CA,en-US;q=0.7,en;q=0.3",
     ]
-    _BING_CHAR_LIMIT = 1200  # limite API Bing pubblica (aumentato con fallback 1-per-1)
+    _BING_CHAR_LIMIT = 1500  # limite API Bing pubblica (massimo ragionevole con fallback)
     _BING_SEP = "\n<<<SEP>>>\n"  # separatore univoco — Bing non traduce i token <<<>>>
 
-    def _bing_make_session(self, base_url: str = "https://www.bing.com", idx: int = 0) -> tuple:
+    def _bing_make_session(self, base_url: str = "https://www.bing.com", idx: int = 0, pool_size: int = 20) -> tuple:
         """Crea sessione con IG + AbusePreventionHelper. Ritorna (session, ig, key, token)."""
         import random
         session = requests.Session()
+        from requests.adapters import HTTPAdapter
+        adapter = HTTPAdapter(pool_connections=pool_size, pool_maxsize=pool_size)
+        session.mount("https://", adapter)
         session.headers.update({
             "User-Agent": self._BING_USER_AGENTS[idx % len(self._BING_USER_AGENTS)],
             "Accept-Language": self._BING_ACCEPT_LANGS[idx % len(self._BING_ACCEPT_LANGS)],
@@ -542,7 +545,7 @@ class Translator:
         import threading
         src, tgt = self.cfg.source_lang, self.cfg.target_lang
         workers, _ = self._turbo_profile()
-        workers = max(3, min(workers, 10))
+        workers = max(3, min(workers * 2, 12))
         thread_local = threading.local()
         chunks = self._bing_split_chunks(texts)
         results = list(texts)
