@@ -662,7 +662,7 @@ class Translator:
         import threading
         src, tgt = self.cfg.source_lang, self.cfg.target_lang
         workers, _ = self._turbo_profile()
-        workers = max(3, min(workers * 2, 12))
+        workers = max(3, min(workers * 4, 32))
         pool = self._BingPool(size=workers)
         chunks = self._bing_split_chunks(texts)
         results = list(texts)
