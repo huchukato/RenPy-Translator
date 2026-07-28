@@ -480,13 +480,19 @@ class Translator:
                    ig: str, key: str, token: str,
                    base_url: str = "https://www.bing.com") -> str:
         """Singola POST a Bing — ritorna il testo tradotto grezzo."""
+        if src == "auto":
+            src = "en"
         r = session.post(
             f"{base_url}/ttranslatev3",
             params={"isVertical": "1", "IG": ig, "IID": "translator.5024"},
             data={"fromLang": src, "to": tgt, "text": text, "token": token, "key": key},
             timeout=self.cfg.timeout_s,
         )
-        return r.json()[0]["translations"][0]["text"]
+        r.raise_for_status()
+        try:
+            return r.json()[0]["translations"][0]["text"]
+        except (KeyError, IndexError, json.JSONDecodeError) as e:
+            raise TranslationError(f"Bing API risposta non valida ({r.status_code}): {r.text[:200]}") from e
 
     def _bing_translate_chunk(self, session, chunk_text: str, src: str, tgt: str,
                               ig: str, key: str, token: str,

@@ -35,7 +35,7 @@ LANGUAGES = {
 }
 BACKENDS = {
     "Google Turbo": "google_turbo",
-    "Bing Turbo": "bing_ultra",
+    "Bing Turbo": "bing_turbo",
     "OpenRouter": "openrouter",
     "Llama Local": "llama",
 }
