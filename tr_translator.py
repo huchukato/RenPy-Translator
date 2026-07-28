@@ -452,31 +452,42 @@ class Translator:
             self.fail_count = 0
             self.success_count = 0
             self._use_httpx = HTTPX_OK
+            ua = Translator._BING_USER_AGENTS[idx % len(Translator._BING_USER_AGENTS)]
+            al = Translator._BING_ACCEPT_LANGS[idx % len(Translator._BING_ACCEPT_LANGS)]
+            headers = {
+                "User-Agent": ua,
+                "Accept-Language": al,
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Encoding": "gzip, deflate",
+                "Connection": "keep-alive",
+                "Sec-Fetch-Dest": "document",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Site": "none",
+                "Sec-Fetch-User": "?1",
+                "Upgrade-Insecure-Requests": "1",
+            }
             if self._use_httpx:
-                limits = httpx.Limits(max_keepalive_connections=20, max_connections=20)
+                limits = httpx.Limits(max_keepalive_connections=32, max_connections=32)
                 self._client = httpx.Client(
+                    base_url=base_url,
                     limits=limits,
                     timeout=httpx.Timeout(30.0, connect=10.0),
-                    headers={
-                        "User-Agent": Translator._BING_USER_AGENTS[idx % len(Translator._BING_USER_AGENTS)],
-                        "Accept-Language": Translator._BING_ACCEPT_LANGS[idx % len(Translator._BING_ACCEPT_LANGS)],
-                    },
+                    headers=headers,
+                    http2=True,
+                    follow_redirects=True,
                 )
             else:
                 self._client = requests.Session()
                 from requests.adapters import HTTPAdapter
-                adapter = HTTPAdapter(pool_connections=20, pool_maxsize=20)
+                adapter = HTTPAdapter(pool_connections=32, pool_maxsize=32)
                 self._client.mount("https://", adapter)
-                self._client.headers.update({
-                    "User-Agent": Translator._BING_USER_AGENTS[idx % len(Translator._BING_USER_AGENTS)],
-                    "Accept-Language": Translator._BING_ACCEPT_LANGS[idx % len(Translator._BING_ACCEPT_LANGS)],
-                })
+                self._client.headers.update(headers)
             self._refresh_token()
 
         def _refresh_token(self):
             try:
                 if self._use_httpx:
-                    home = self._client.get(f"{self.base_url}/translator", timeout=10.0)
+                    home = self._client.get("/translator", timeout=10.0)
                 else:
                     home = self._client.get(f"{self.base_url}/translator", timeout=10)
                 html = home.text
@@ -528,7 +539,7 @@ class Translator:
                 try:
                     if self._use_httpx:
                         r = self._client.post(
-                            f"{self.base_url}/ttranslatev3",
+                            "/ttranslatev3",
                             params={"isVertical": "1", "IG": self.ig, "IID": "translator.5024"},
                             data=data,
                             timeout=timeout_s,
@@ -553,6 +564,13 @@ class Translator:
                             time.sleep(0.3 * (self._BASE_BACKOFF ** attempt))
                         continue
                     r.raise_for_status()
+                    body = r.text
+                    if "Rate-limited" in body or "Server" in body:
+                        logger.warning(f"Bing {self.base_url} rate/server response: {body[:120]}")
+                        self._set_cooldown(is_429=True)
+                        if attempt < 2:
+                            time.sleep(0.5 * (self._BASE_BACKOFF ** attempt))
+                        continue
                     result = r.json()[0]["translations"][0]["text"]
                     self._mark_success()
                     return result
@@ -562,7 +580,7 @@ class Translator:
                     if attempt < 2:
                         time.sleep(0.5 * (self._BASE_BACKOFF ** attempt))
                 except Exception as e:
-                    logger.warning(f"Bing {self.base_url} error: {type(e).__name__}: {e}")
+                    logger.warning(f"Bing {self.base_url} error: {type(e).__name__}: {e} | body: {getattr(r, 'text', '')[:120]}")
                     self._set_cooldown()
                     if attempt < 2:
                         time.sleep(0.3 * (self._BASE_BACKOFF ** attempt))
@@ -574,7 +592,7 @@ class Translator:
         def __init__(self, size: int = 6):
             self.size = size
             self._lock = threading.Lock()
-            endpoints = ["https://www.bing.com"] * size
+            endpoints = ["https://www.bing.com", "https://cn.bing.com"] * ((size // 2) + 1)
             self._sessions: list[Translator._BingSession] = [
                 Translator._BingSession(endpoints[i], i) for i in range(size)
             ]
