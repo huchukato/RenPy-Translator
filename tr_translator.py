@@ -550,7 +550,7 @@ class Translator:
         def __init__(self, size: int = 6):
             self.size = size
             self._lock = threading.Lock()
-            endpoints = ["https://www.bing.com", "https://cn.bing.com"] * ((size // 2) + 1)
+            endpoints = ["https://www.bing.com"] * size
             self._sessions: list[Translator._BingSession] = [
                 Translator._BingSession(endpoints[i], i) for i in range(size)
             ]
