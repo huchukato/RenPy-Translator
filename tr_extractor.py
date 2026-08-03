@@ -27,6 +27,18 @@ class TRExtractor:
             return d
         return self.game_path
 
+    def _rpa_marker(self, rpa_file):
+        return rpa_file.with_suffix('.rpa.extracted')
+
+    def _is_extracted(self, rpa_file):
+        return self._rpa_marker(rpa_file).exists()
+
+    def _mark_extracted(self, rpa_file):
+        try:
+            self._rpa_marker(rpa_file).touch()
+        except Exception:
+            pass
+
     def extract_rpa_files(self, progress_callback=None):
         rpa_files = list(self.game_dir.glob("*.rpa"))
         if not rpa_files:
@@ -37,6 +49,16 @@ class TRExtractor:
         for i, rpa in enumerate(rpa_files):
             if progress_callback:
                 progress_callback(i + 1, len(rpa_files))
+
+            if self._is_extracted(rpa):
+                print(f"Già estratto, salto: {rpa.name}")
+                try:
+                    rpa.unlink()
+                    print(f"Rimosso .rpa già estratto: {rpa.name}")
+                except Exception as e:
+                    print(f"Avviso: impossibile rimuovere {rpa.name}: {e}")
+                continue
+
             print(f"Estrazione {rpa.name}...")
             try:
                 r = subprocess.run(
@@ -49,6 +71,14 @@ class TRExtractor:
             except Exception as e:
                 print(f"Errore estrazione: {e}")
                 return False
+
+            try:
+                rpa.unlink()
+                self._mark_extracted(rpa)
+                print(f"Estratto e rimosso: {rpa.name}")
+            except Exception as e:
+                print(f"Avviso: impossibile rimuovere {rpa.name}: {e}")
+
         print("Estrazione completata")
         return True
 
