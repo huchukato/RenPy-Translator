@@ -251,6 +251,42 @@ init 9999 python:
     (tl_dir / "zz_runtime_filter.rpy").write_text(rpy, encoding="utf-8")
 
 
+def _wt_override_patch() -> list[str]:
+    """Genera un blocco init python che patcha get_override per walkthrough mod.
+
+    Quando il gioco è tradotto, choice.caption arriva tradotta ma le chiavi
+    MENUS restano in inglese.  Il patch costruisce un reverse-map dalle
+    traduzioni Ren'Py per risalire alla caption originale e matchare l'hint.
+    """
+    return [
+        "# WT mod compatibility patch — reverse-map per hint con caption tradotte",
+        "init 999 python:",
+        "    _wt_orig_get_override = get_override",
+        "    def get_override(caption, index):",
+        "        result = _wt_orig_get_override(caption, index)",
+        "        if result != caption:",
+        "            return result",
+        "        # Reverse-lookup: risali dalla caption tradotta a quella originale",
+        "        lang = renpy.game.preferences.language",
+        "        if lang:",
+        "            stl = renpy.game.script.translator.strings.get(lang)",
+        "            if stl:",
+        "                clean = caption.replace(' (disabled)', '')",
+        "                _rev = {v: k for k, v in stl.translations.items()}",
+        "                original = _rev.get(clean)",
+        "                if original:",
+        "                    fname, lineno = renpy.get_filename_line()",
+        "                    basename = normalize_filename(fname)",
+        "                    key = (basename, int(lineno), original)",
+        "                    if key in MENUS:",
+        "                        hint = MENUS[key]",
+        "                        if ' (disabled)' in caption:",
+        "                            hint += ' (disabled)'",
+        "                        return hint",
+        "        return caption",
+    ]
+
+
 def write_tl_files(
     game_dir: Path,
     lang_code: str,
@@ -302,6 +338,21 @@ def write_tl_files(
                 "",
             ]
             lines.extend(str_lines)
+
+            # WT mod: se il file sorgente contiene MENUS + get_override,
+            # appende il patch reverse-map per far funzionare gli hint.
+            source_file = game_dir / file_key
+            if not source_file.exists():
+                source_file = game_dir / "game" / file_key
+            if source_file.exists():
+                try:
+                    src_text = source_file.read_text(encoding="utf-8", errors="replace")
+                except Exception:
+                    src_text = ""
+                if "MENUS" in src_text and "def get_override" in src_text:
+                    lines.append("")
+                    lines.extend(_wt_override_patch())
+
             out.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
             written.append(out)
 
