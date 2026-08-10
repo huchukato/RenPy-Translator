@@ -255,34 +255,32 @@ def _wt_override_patch() -> list[str]:
     """Genera un blocco init python che patcha get_override per walkthrough mod.
 
     Quando il gioco è tradotto, choice.caption arriva tradotta ma le chiavi
-    MENUS restano in inglese.  Il patch costruisce un reverse-map dalle
-    traduzioni Ren'Py per risalire alla caption originale e matchare l'hint.
+    MENUS restano in inglese.  Il patch usa renpy.translate_string() per
+    tradurre ogni chiave MENUS e confrontarla con la caption ricevuta.
     """
     return [
-        "# WT mod compatibility patch — reverse-map per hint con caption tradotte",
+        "# WT mod compatibility patch — translate_string per hint con caption tradotte",
         "init 999 python:",
         "    _wt_orig_get_override = get_override",
         "    def get_override(caption, index):",
         "        result = _wt_orig_get_override(caption, index)",
         "        if result != caption:",
         "            return result",
-        "        # Reverse-lookup: risali dalla caption tradotta a quella originale",
-        "        lang = renpy.game.preferences.language",
-        "        if lang:",
-        "            stl = renpy.game.script.translator.strings.get(lang)",
-        "            if stl:",
-        "                clean = caption.replace(' (disabled)', '')",
-        "                _rev = {v: k for k, v in stl.translations.items()}",
-        "                original = _rev.get(clean)",
-        "                if original:",
-        "                    fname, lineno = renpy.get_filename_line()",
-        "                    basename = normalize_filename(fname)",
-        "                    key = (basename, int(lineno), original)",
-        "                    if key in MENUS:",
-        "                        hint = MENUS[key]",
+        "        # Fallback: caption tradotta, cerchiamo la chiave originale",
+        "        fname, lineno = renpy.get_filename_line()",
+        "        basename = normalize_filename(fname)",
+        "        clean = caption.replace(' (disabled)', '')",
+        "        for k, v in MENUS.items():",
+        "            if k[0] == basename and k[1] == int(lineno):",
+        "                try:",
+        "                    translated_key = renpy.translate_string(k[2])",
+        "                    if translated_key == clean:",
+        "                        hint = v",
         "                        if ' (disabled)' in caption:",
         "                            hint += ' (disabled)'",
         "                        return hint",
+        "                except:",
+        "                    pass",
         "        return caption",
     ]
 
