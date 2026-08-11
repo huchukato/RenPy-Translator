@@ -10,7 +10,7 @@ ICONSET_DIR="$SCRIPT_DIR/img/icon.iconset"
 ICNS_SRC="$SCRIPT_DIR/img/logo.icns"
 
 VERSION=$(grep -E '^version\s*=\s*"' "$SCRIPT_DIR/pyproject.toml" | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
-VERSION="${VERSION:-2.1.0}"
+VERSION="${VERSION:-2.2.0}"
 
 echo "[RenPy-Translator] Building ${APP_NAME}.app v${VERSION}..."
 
@@ -112,3 +112,33 @@ LAUNCHER
 chmod +x "$BUNDLE_DIR/Contents/MacOS/${APP_NAME}"
 
 echo "[RenPy-Translator] Bundle ready: $BUNDLE_DIR"
+
+# --- Creazione DMG ---
+ARCH=$(uname -m)
+DMG_NAME="RenPy-Translator[v${VERSION}]-${ARCH}.dmg"
+DMG_FILE="$SCRIPT_DIR/dist/${DMG_NAME}"
+DMG_STAGING="$SCRIPT_DIR/dist/.dmg_staging"
+
+echo "[RenPy-Translator] Creating DMG: ${DMG_NAME}..."
+
+rm -rf "$DMG_STAGING"
+mkdir -p "$DMG_STAGING"
+
+# Copia .app nella staging area
+cp -R "$BUNDLE_DIR" "$DMG_STAGING/"
+
+# Link simbolico ad Applications
+ln -s /Applications "$DMG_STAGING/Applications"
+
+# Crea DMG
+rm -f "$DMG_FILE"
+hdiutil create \
+    -volname "RenPy Translator" \
+    -srcfolder "$DMG_STAGING" \
+    -ov -format UDZO \
+    "$DMG_FILE"
+
+# Pulizia
+rm -rf "$DMG_STAGING"
+
+echo "[RenPy-Translator] DMG ready: $DMG_FILE"
