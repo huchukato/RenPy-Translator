@@ -113,6 +113,8 @@ pip install customtkinter pillow deep-translator requests
 
 Se usi anche **[Ren'Py WTForge](https://github.com/huchukato/RenPy-WTForge)** per generare una mod walkthrough, **traduci sempre prima**, poi genera la mod — così WTForge include automaticamente i testi tradotti.
 
+Le mod walkthrough di terze parti (es. Ronnu's) vengono patchate automaticamente per la compatibilità con le caption tradotte — gli hint delle scelte funzioneranno correttamente in qualsiasi lingua.
+
 ---
 
 ## 🙏 Crediti

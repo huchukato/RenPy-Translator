@@ -111,6 +111,8 @@ pip install customtkinter pillow deep-translator requests
 
 If you also use **[Ren'Py WTForge](https://github.com/huchukato/RenPy-WTForge)** to generate a walkthrough mod, always **translate first**, then generate the mod — so WTForge picks up the translated choice texts automatically.
 
+Third-party walkthrough mods (e.g. Ronnu's) are automatically patched for translated caption compatibility — choice hints will display correctly in any language.
+
 ---
 
 ## 🙏 Credits
