@@ -30,6 +30,7 @@
 | 🌐 **Source Language** | Choose Auto-detect or a manual source language for translation |
 | 📝 **Inline Editor** | Click any row in the table to review and edit the machine translation before saving |
 | 🔧 **CTkMaker Export** | Export the GUI layout to a CTkMaker project for visual customization |
+| 🎨 **Figma Design System** | GUI built from a reusable component library matching the project's Figma design tokens |
 
 ---
 
@@ -111,7 +112,7 @@ pip install customtkinter pillow deep-translator requests
 
 If you also use **[Ren'Py WTForge](https://github.com/huchukato/RenPy-WTForge)** to generate a walkthrough mod, always **translate first**, then generate the mod — so WTForge picks up the translated choice texts automatically.
 
-Third-party walkthrough mods (e.g. Ronnu's) are automatically patched for translated caption compatibility — choice hints will display correctly in any language.
+Third-party walkthrough mods (e.g. Ronnu's) are automatically patched for translated caption compatibility — choice hints will display correctly in any language, without duplicating the original English text.
 
 ---
 
