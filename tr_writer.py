@@ -251,61 +251,114 @@ init 9999 python:
     (tl_dir / "zz_runtime_filter.rpy").write_text(rpy, encoding="utf-8")
 
 
-def _wt_override_patch() -> list[str]:
+def _wt_override_patch(lang_code: str) -> list[str]:
     """Genera un blocco init python che patcha get_override per walkthrough mod.
 
-    Quando il gioco è tradotto, choice.caption arriva tradotta ma le chiavi
-    MENUS restano in inglese.  Il patch scansiona i file tl/ per costruire
-    un dizionario {caption_tradotta: hint} e fa lookup diretto, come WTForge.
+    Molte mod walkthrough (es. WTForge) mostrano choice.caption/hint scrivendo
+    direttamente `textbutton display_caption` SENZA passare per `_()`: il testo
+    resta quindi sempre in inglese, indipendentemente dalla lingua attiva,
+    perche' non passa mai dal sistema di traduzione stringhe di Ren'Py.
+
+    Questa patch reimplementa il lookup in MENUS della mod (stessa chiave
+    (file, riga, caption) e stesso fallback via renpy.substitute per le
+    stringhe dinamiche), isola il solo suffisso di hint aggiunto dalla mod e
+    traduce esplicitamente il testo base usando il dizionario di traduzione
+    runtime di Ren'Py, per poi riattaccare il suffisso (che resta in inglese:
+    non e' testo di dialogo/scelta ma un suggerimento della mod, non estratto
+    per la traduzione). Non ci si affida al valore restituito dalla
+    get_override originale per isolare il suffisso: la mod non chiama
+    renpy.substitute() sui match diretti, quindi confrontare quel risultato
+    con la caption tradotta/pulita puo' fallire in modo inconsistente.
     """
     return [
-        "# WT mod compatibility patch — lookup caption tradotte (approccio WTForge)",
+        "# WT mod compatibility patch — traduce la caption e mantiene l'hint della mod",
         "init 999 python:",
+        f"    _wt_lang = \"{lang_code}\"",
+        "    _wt_dict = {}",
+        "    try:",
+        "        _wt_stl = renpy.game.script.translator.strings.get(_wt_lang)",
+        "        if _wt_stl and hasattr(_wt_stl, 'translations'):",
+        "            _wt_dict = _wt_stl.translations",
+        "    except Exception:",
+        "        pass",
         "    import os as _wt_os, re as _wt_re",
-        "    # Scansiona tl/ per costruire {traduzione: originale}",
-        "    _wt_tl_map = {}",
-        "    _wt_tl_dir = _wt_os.path.join(renpy.config.gamedir, 'tl')",
-        "    _wt_re_old = _wt_re.compile(r'^\\s*old\\s+\"(.+)\"\\s*$')",
-        "    _wt_re_new = _wt_re.compile(r'^\\s*new\\s+\"(.+)\"\\s*$')",
-        "    if _wt_os.path.isdir(_wt_tl_dir):",
-        "        for _root, _dirs, _files in _wt_os.walk(_wt_tl_dir):",
-        "            for _fn in _files:",
-        "                if not _fn.endswith('.rpy'):",
-        "                    continue",
-        "                try:",
-        "                    with open(_wt_os.path.join(_root, _fn), 'r', encoding='utf-8') as _f:",
-        "                        _lines = _f.readlines()",
-        "                    _i = 0",
-        "                    while _i < len(_lines) - 1:",
-        "                        _m_old = _wt_re_old.match(_lines[_i])",
-        "                        if _m_old:",
-        "                            _m_new = _wt_re_new.match(_lines[_i + 1])",
-        "                            if _m_new and _m_old.group(1) != _m_new.group(1):",
-        "                                _wt_tl_map[_m_new.group(1)] = _m_old.group(1)",
-        "                            _i += 2",
-        "                            continue",
-        "                        _i += 1",
-        "                except Exception:",
-        "                    pass",
-        "    # Costruisci {caption: hint} per chiavi originali e tradotte",
-        "    _wt_tl_hints = {}",
-        "    for _k, _v in MENUS.items():",
-        "        _wt_tl_hints[_k[2]] = _v",
-        "        for _transl, _orig in _wt_tl_map.items():",
-        "            if _orig == _k[2]:",
-        "                _wt_tl_hints[_transl] = _v",
+        "    _wt_tag_re = _wt_re.compile(r'\\{[^}]*\\}')",
+        "    def _wt_normalize(s):",
+        "        s = s.replace('\\u2018', \"'\").replace('\\u2019', \"'\")",
+        "        s = s.replace('\\u201c', '\"').replace('\\u201d', '\"')",
+        "        s = s.replace('\\u2026', '...').replace('\\u2014', '--').replace('\\u2013', '-')",
+        "        return _wt_re.sub(r'[ \\n]+', ' ', s).strip()",
+        "    def _wt_translate(s):",
+        "        if not s:",
+        "            return s",
+        "        r = _wt_dict.get(s)",
+        "        if r is not None:",
+        "            return r",
+        "        n = _wt_normalize(s)",
+        "        if n != s:",
+        "            r = _wt_dict.get(n)",
+        "            if r is not None:",
+        "                return r",
+        "        stripped = _wt_tag_re.sub('', s).strip()",
+        "        if stripped and stripped != s:",
+        "            r = _wt_dict.get(stripped)",
+        "            if r is not None:",
+        "                return r",
+        "        return s",
+        "    def _wt_basename(fname):",
+        "        b = _wt_os.path.basename(fname)",
+        "        if b.endswith('.rpyc'):",
+        "            b = b[:-1]",
+        "        return b",
         "    _wt_orig_get_override = get_override",
         "    def get_override(caption, index):",
-        "        result = _wt_orig_get_override(caption, index)",
-        "        if result != caption:",
-        "            return result",
+        "        is_disabled = ' (disabled)' in caption",
         "        clean = caption.replace(' (disabled)', '')",
-        "        hint = _wt_tl_hints.get(clean)",
-        "        if hint:",
-        "            if ' (disabled)' in caption:",
-        "                hint += ' (disabled)'",
-        "            return hint",
-        "        return caption",
+        "        suffix = ''",
+        "        fname = lineno = None",
+        "        try:",
+        "            fname, lineno = renpy.get_filename_line()",
+        "        except Exception:",
+        "            fname = lineno = None",
+        "        if fname is not None and lineno is not None:",
+        "            try:",
+        "                basename = _wt_basename(fname)",
+        "                lineno = int(lineno)",
+        "                match_key = None",
+        "                match_val = None",
+        "                direct = (basename, lineno, clean)",
+        "                if direct in MENUS:",
+        "                    match_key = clean",
+        "                    match_val = MENUS[direct]",
+        "                else:",
+        "                    # renpy.substitute() traduce anche la stringa (non solo le",
+        "                    # variabili [var]), quindi funziona pure a gioco tradotto:",
+        "                    # confrontiamo con clean (gia' tradotta da Ren'Py).",
+        "                    for k, v in MENUS.items():",
+        "                        if k[0] == basename and k[1] == lineno:",
+        "                            try:",
+        "                                if renpy.substitute(k[2]) == clean:",
+        "                                    match_key = k[2]",
+        "                                    match_val = v",
+        "                                    break",
+        "                            except Exception:",
+        "                                continue",
+        "                if match_val is not None:",
+        "                    # match_val non e' mai una stringa tradotta per intero (solo",
+        "                    # la caption base lo e'): usiamo la lunghezza di match_key",
+        "                    # (originale, non tradotta) per isolare il solo suffisso hint,",
+        "                    # gia' con le variabili [var] risolte da renpy.substitute().",
+        "                    try:",
+        "                        sub_val = renpy.substitute(match_val)",
+        "                    except Exception:",
+        "                        sub_val = match_val",
+        "                    suffix = sub_val[len(match_key):] if sub_val.startswith(match_key) else (' ' + sub_val)",
+        "            except Exception:",
+        "                suffix = ''",
+        "        final = _wt_translate(clean) + suffix",
+        "        if is_disabled:",
+        "            final += ' (disabled)'",
+        "        return final",
     ]
 
 
@@ -377,7 +430,7 @@ def write_tl_files(
                     patch_lines = [
                         "# Auto-generated by Ren'Py Translator \u2014 DO NOT EDIT BY HAND",
                     ]
-                    patch_lines.extend(_wt_override_patch())
+                    patch_lines.extend(_wt_override_patch(lang_code))
                     patch_file.write_text(
                         "\n".join(patch_lines).rstrip() + "\n", encoding="utf-8"
                     )
