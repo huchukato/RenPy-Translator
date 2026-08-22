@@ -14,6 +14,21 @@ from tr_extractor import TRExtractor
 from tr_parser import parse_rpy_file, ExtractedString, extract_character_names
 from tr_translator import Translator, TranslatorConfig, TranslationError, OPENROUTER_FREE_MODELS, LANG_NAMES
 from tr_writer import write_tl_files, write_activator, backup_tl_dir, restore_tl_backup
+from ctk_components import (
+    C,
+    apply_figma_theme,
+    CtkStyledFrame,
+    CtkStyledButton,
+    CtkStyledEntry,
+    CtkStyledComboBox,
+    CtkStyledCheckBox,
+    CtkStyledSwitch,
+    CtkStyledLabel,
+    CtkStyledBadge,
+    CtkStyledTextbox,
+    CtkStyledProgressBar,
+    CtkStyledTabview,
+)
 
 try:
     from PIL import Image, ImageTk
@@ -243,24 +258,24 @@ UI_TEXTS = {
 }
 
 # ─── Tema ────────────────────────────────────────────────────────────────────
-ctk.set_appearance_mode("dark")
-ctk.set_default_color_theme("blue")
+# Palette allineata ai design token del progetto Figma (vedi ctk_components.C).
+apply_figma_theme()
 
-COLOR_BG       = "#0b1120"
-COLOR_PANEL    = "#0f2844"
-COLOR_ACCENT   = "#22d3ee"
-COLOR_ACCENT_MAGENTA = "#e879f9"
-COLOR_ACCENT_GOLD = "#fbbf24"
-COLOR_ACCENT_CYAN = "#22d3ee"
-COLOR_BTN_MAIN = "#22d3ee"
-COLOR_BTN_ALT  = "#e879f9"
-COLOR_BTN_WARN = "#f43f5e"
-COLOR_BTN_SUCCESS = "#34d399"
-COLOR_TEXT     = "#f0f9ff"
-COLOR_SUBTEXT  = "#94a3b8"
-COLOR_ROW_EVEN = "#080d18"
-COLOR_ROW_ODD  = "#0d1e33"
-COLOR_SELECTED = "#0e7490"
+COLOR_BG       = C["bg"]
+COLOR_PANEL    = C["frame"]
+COLOR_ACCENT   = C["blue"]
+COLOR_ACCENT_MAGENTA = C["blue_hover"]
+COLOR_ACCENT_GOLD = C["blue_hover"]
+COLOR_ACCENT_CYAN = C["blue"]
+COLOR_BTN_MAIN = C["blue"]
+COLOR_BTN_ALT  = C["blue_hover"]
+COLOR_BTN_WARN = C["red"]
+COLOR_BTN_SUCCESS = C["green"]
+COLOR_TEXT     = C["text"]
+COLOR_SUBTEXT  = C["subtext"]
+COLOR_ROW_EVEN = C["bg"]
+COLOR_ROW_ODD  = C["frame"]
+COLOR_SELECTED = C["blue_hover"]
 
 
 # ─── Settings Dialog ─────────────────────────────────────────────────────────
@@ -276,25 +291,25 @@ class SettingsDialog(ctk.CTkToplevel):
         self._load()
 
     def _build(self):
+        self.configure(fg_color=C["bg"])
         pad = {"padx": 16, "pady": 6}
-        ctk.CTkLabel(self, text="OpenRouter API Key:").pack(anchor="w", **pad)
-        self.or_key = ctk.CTkEntry(self, width=460, show="*")
+        CtkStyledLabel(self, text="OpenRouter API Key:").pack(anchor="w", **pad)
+        self.or_key = CtkStyledEntry(self, width=460, show="*")
         self.or_key.pack(**pad)
 
-        ctk.CTkLabel(self, text="OpenRouter Model:").pack(anchor="w", **pad)
-        self.or_model = ctk.CTkComboBox(self, values=OPENROUTER_FREE_MODELS, width=460)
+        CtkStyledLabel(self, text="OpenRouter Model:").pack(anchor="w", **pad)
+        self.or_model = CtkStyledComboBox(self, values=OPENROUTER_FREE_MODELS, width=460)
         self.or_model.pack(**pad)
 
-        ctk.CTkLabel(self, text="llama model repo (HuggingFace):").pack(anchor="w", **pad)
-        self.llama_repo = ctk.CTkEntry(self, width=460)
+        CtkStyledLabel(self, text="llama model repo (HuggingFace):").pack(anchor="w", **pad)
+        self.llama_repo = CtkStyledEntry(self, width=460)
         self.llama_repo.pack(**pad)
 
-        ctk.CTkLabel(self, text="llama model file (.gguf):").pack(anchor="w", **pad)
-        self.llama_file = ctk.CTkEntry(self, width=460)
+        CtkStyledLabel(self, text="llama model file (.gguf):").pack(anchor="w", **pad)
+        self.llama_file = CtkStyledEntry(self, width=460)
         self.llama_file.pack(**pad)
 
-        ctk.CTkButton(self, text="Save", command=self._save,
-                      fg_color=COLOR_BTN_MAIN).pack(pady=12)
+        CtkStyledButton(self, text="Save", variant="blue", command=self._save).pack(pady=12)
 
     def _load(self):
         s = self.parent.settings
@@ -350,33 +365,32 @@ class TranslatorApp(ctk.CTk):
 
     def _build_ui(self):
         # Top bar
-        top = ctk.CTkFrame(self, fg_color=COLOR_PANEL, height=80)
+        top = CtkStyledFrame(self, fg_color=COLOR_PANEL, height=80, corner_radius=0, border_width=0)
         top.pack(fill="x", padx=0, pady=0)
         top.pack_propagate(False)
 
-        self.logo_label = ctk.CTkLabel(top, text="")
+        self.logo_label = CtkStyledLabel(top, text="")
         self.logo_label.pack(side="left", padx=12, pady=8)
         self._set_logo(top)
 
         game_frame = ctk.CTkFrame(top, fg_color="transparent")
         game_frame.pack(side="left", fill="both", expand=True, padx=8)
 
-        self.game_section_label = ctk.CTkLabel(game_frame, text=self.t("game_selection"),
-                                               font=ctk.CTkFont(size=12, weight="bold"),
-                                               text_color=COLOR_SUBTEXT)
+        self.game_section_label = CtkStyledLabel(game_frame, text=self.t("game_selection"), sub=True,
+                                                  font=ctk.CTkFont(size=12, weight="bold"))
         self.game_section_label.pack(anchor="w")
 
         path_row = ctk.CTkFrame(game_frame, fg_color="transparent")
         path_row.pack(fill="x")
-        self.path_entry = ctk.CTkEntry(path_row, width=500, placeholder_text="...")
+        self.path_entry = CtkStyledEntry(path_row, width=500, placeholder="...")
         self.path_entry.pack(side="left", padx=(0, 6))
-        ctk.CTkButton(path_row, text=self.t("btn_app"), width=60,
-                      fg_color=COLOR_ACCENT, command=self._pick_app).pack(side="left", padx=2)
-        ctk.CTkButton(path_row, text=self.t("btn_folder"), width=80,
-                      fg_color=COLOR_ACCENT, command=self._pick_folder).pack(side="left", padx=2)
+        CtkStyledButton(path_row, text=self.t("btn_app"), variant="blue", width=60,
+                        command=self._pick_app).pack(side="left", padx=2)
+        CtkStyledButton(path_row, text=self.t("btn_folder"), variant="blue", width=80,
+                        command=self._pick_folder).pack(side="left", padx=2)
 
-        self.game_status = ctk.CTkLabel(game_frame, text=self.t("no_game"),
-                                        text_color=COLOR_SUBTEXT, font=ctk.CTkFont(size=11))
+        self.game_status = CtkStyledLabel(game_frame, text=self.t("no_game"), sub=True,
+                                          font=ctk.CTkFont(size=11))
         self.game_status.pack(anchor="w")
 
         # Language selector
@@ -384,7 +398,7 @@ class TranslatorApp(ctk.CTk):
         lang_frame.pack(side="right", padx=12, pady=8, anchor="n")
         lang_display = {"en": "English", "it": "Italiano", "es": "Español"}
         self.ui_lang_var = ctk.StringVar(value=lang_display.get(self.lang, "English"))
-        self.ui_lang_combo = ctk.CTkComboBox(
+        self.ui_lang_combo = CtkStyledComboBox(
             lang_frame,
             values=["English", "Italiano", "Español"],
             width=120,
@@ -394,57 +408,59 @@ class TranslatorApp(ctk.CTk):
         self.ui_lang_combo.pack()
 
         # Progress
-        prog_frame = ctk.CTkFrame(self, fg_color=COLOR_PANEL, height=36)
+        prog_frame = CtkStyledFrame(self, fg_color=COLOR_PANEL, height=36, corner_radius=0, border_width=0)
         prog_frame.pack(fill="x", padx=0, pady=(2, 0))
         prog_frame.pack_propagate(False)
-        self.progress = ctk.CTkProgressBar(prog_frame, height=14)
+        self.progress = CtkStyledProgressBar(prog_frame, height=14)
         self.progress.pack(side="left", fill="x", expand=True, padx=12, pady=10)
         self.progress.set(0)
-        self.progress_label = ctk.CTkLabel(prog_frame, text="", text_color=COLOR_SUBTEXT,
-                                           font=ctk.CTkFont(size=11))
+        self.progress_label = CtkStyledLabel(prog_frame, text="", sub=True,
+                                             font=ctk.CTkFont(size=11))
         self.progress_label.pack(side="right", padx=12)
 
         # Filter + lang row
-        ctrl = ctk.CTkFrame(self, fg_color=COLOR_PANEL, height=44)
+        ctrl = CtkStyledFrame(self, fg_color=COLOR_PANEL, height=44, corner_radius=0, border_width=0)
         ctrl.pack(fill="x", pady=(2, 0))
         ctrl.pack_propagate(False)
 
-        ctk.CTkLabel(ctrl, text=self.t("filter"), text_color=COLOR_SUBTEXT).pack(side="left", padx=(12, 4))
+        CtkStyledLabel(ctrl, text=self.t("filter"), sub=True).pack(side="left", padx=(12, 4))
         self.filter_var = ctk.StringVar(value="all")
         for val, key in [("all", "filter_all"), ("translated", "filter_translated"),
                          ("untranslated", "filter_untranslated")]:
             rb = ctk.CTkRadioButton(ctrl, text=self.t(key), variable=self.filter_var,
-                                    value=val, command=self._apply_filter)
+                                    value=val, command=self._apply_filter,
+                                    fg_color=C["blue"], border_color=C["border"],
+                                    hover_color=C["blue_hover"], text_color=C["text"])
             rb.pack(side="left", padx=4)
 
-        ctk.CTkLabel(ctrl, text=self.t("source_lang"), text_color=COLOR_SUBTEXT).pack(side="left", padx=(20, 4))
+        CtkStyledLabel(ctrl, text=self.t("source_lang"), sub=True).pack(side="left", padx=(20, 4))
         source_values = [self.t("source_auto")] + list(LANGUAGES.keys())
         self.source_lang_var = ctk.StringVar(value=self.settings.get("source_lang_ui", self.t("source_auto")))
-        self.source_lang_combo = ctk.CTkComboBox(ctrl, values=source_values, width=120,
+        self.source_lang_combo = CtkStyledComboBox(ctrl, values=source_values, width=120,
                                                  variable=self.source_lang_var, command=self._on_source_lang_change)
         self.source_lang_combo.pack(side="left", padx=4)
 
-        ctk.CTkLabel(ctrl, text=self.t("target_lang"), text_color=COLOR_SUBTEXT).pack(side="left", padx=(16, 4))
+        CtkStyledLabel(ctrl, text=self.t("target_lang"), sub=True).pack(side="left", padx=(16, 4))
         self.lang_var = ctk.StringVar(value=self.settings.get("target_lang", "Italian"))
-        self.lang_combo = ctk.CTkComboBox(ctrl, values=list(LANGUAGES.keys()), width=130,
+        self.lang_combo = CtkStyledComboBox(ctrl, values=list(LANGUAGES.keys()), width=130,
                                           variable=self.lang_var, command=self._on_target_lang_change)
         self.lang_combo.pack(side="left", padx=4)
 
-        ctk.CTkLabel(ctrl, text=self.t("backend"), text_color=COLOR_SUBTEXT).pack(side="left", padx=(16, 4))
+        CtkStyledLabel(ctrl, text=self.t("backend"), sub=True).pack(side="left", padx=(16, 4))
         saved_backend = self.settings.get("backend", "bing_ultra")
         self.backend_var = ctk.StringVar(value=BACKEND_LABELS.get(saved_backend, "Bing Turbo"))
-        self.backend_combo = ctk.CTkComboBox(ctrl, values=list(BACKENDS), width=140,
+        self.backend_combo = CtkStyledComboBox(ctrl, values=list(BACKENDS), width=140,
                                              variable=self.backend_var, command=self._on_backend_change)
         self.backend_combo.pack(side="left", padx=4)
 
-        ctk.CTkLabel(ctrl, text="Profile:", text_color=COLOR_SUBTEXT).pack(side="left", padx=(12, 4))
+        CtkStyledLabel(ctrl, text="Profile:", sub=True).pack(side="left", padx=(12, 4))
         self.profile_var = ctk.StringVar(value=self.settings.get("translation_profile", "Balanced"))
-        self.profile_combo = ctk.CTkComboBox(ctrl, values=["Safe", "Balanced", "Fast"], width=105,
+        self.profile_combo = CtkStyledComboBox(ctrl, values=["Safe", "Balanced", "Fast"], width=105,
                                              variable=self.profile_var, command=self._on_profile_change)
         self.profile_combo.pack(side="left", padx=4)
 
         # Tabs
-        self.tabs = ctk.CTkTabview(self, fg_color=COLOR_PANEL)
+        self.tabs = CtkStyledTabview(self, fg_color=COLOR_PANEL, corner_radius=0, border_width=0)
         self.tabs.pack(fill="both", expand=True, padx=0, pady=(2, 0))
         self.tab_strings = self.tabs.add(self.t("strings_tab"))
         self.tab_log = self.tabs.add(self.t("log_tab"))
@@ -453,70 +469,69 @@ class TranslatorApp(ctk.CTk):
 
         # Bottom buttons
         # ── Riga comandi ─────────────────────────────────────────────────
-        bottom = ctk.CTkFrame(self, fg_color=COLOR_PANEL, height=56)
+        bottom = CtkStyledFrame(self, fg_color=COLOR_PANEL, height=56, corner_radius=0, border_width=0)
         bottom.pack(fill="x", pady=(2, 0))
         bottom.pack_propagate(False)
 
-        self.btn_analyze_translate = ctk.CTkButton(bottom, text=f"▶  {self.t('analyze_translate')}",
-                                                   fg_color="#16a34a", hover_color="#15803d",
-                                                   width=200, command=self._analyze_translate,
-                                                   state="disabled")
+        self.btn_analyze_translate = CtkStyledButton(bottom, text=f"▶  {self.t('analyze_translate')}",
+                                                      variant="green", width=200,
+                                                      command=self._analyze_translate, state="disabled")
         self.btn_analyze_translate.pack(side="left", padx=10, pady=10)
 
-        self.btn_save_translation = ctk.CTkButton(bottom, text=self.t("save_translation"),
-                                                  fg_color=COLOR_BTN_ALT, width=140, command=self._save_translation,
-                                                  state="disabled")
+        self.btn_save_translation = CtkStyledButton(bottom, text=self.t("save_translation"),
+                                                     variant="blue", width=140, command=self._save_translation,
+                                                     state="disabled")
         self.btn_save_translation.pack(side="left", padx=6, pady=10)
 
-        self.btn_export = ctk.CTkButton(bottom, text=self.t("export"),
-                                        fg_color="#ec4899", width=110, command=self._export_tl,
-                                        state="disabled")
+        self.btn_export = CtkStyledButton(bottom, text=self.t("export"),
+                                          variant="blue", width=110, command=self._export_tl,
+                                          state="disabled")
         self.btn_export.pack(side="left", padx=6, pady=10)
 
-        self.btn_cancel = ctk.CTkButton(bottom, text=self.t("cancel"),
-                                        fg_color=COLOR_BTN_WARN, width=100, command=self._cancel,
-                                        state="disabled")
+        self.btn_cancel = CtkStyledButton(bottom, text=self.t("cancel"),
+                                          variant="red", width=100, command=self._cancel,
+                                          state="disabled")
         self.btn_cancel.pack(side="left", padx=6, pady=10)
 
-        self.btn_clear_cache = ctk.CTkButton(bottom, text=self.t("clear_cache"),
-                                              fg_color=COLOR_BTN_WARN, width=100, command=self._clear_cache)
+        self.btn_clear_cache = CtkStyledButton(bottom, text=self.t("clear_cache"),
+                                               variant="red", width=100, command=self._clear_cache)
         self.btn_clear_cache.pack(side="right", padx=6, pady=10)
 
-        self.btn_restore_backup = ctk.CTkButton(bottom, text=self.t("restore_backup"),
-                                                 fg_color=COLOR_BTN_WARN, width=140, command=self._restore_backup)
+        self.btn_restore_backup = CtkStyledButton(bottom, text=self.t("restore_backup"),
+                                                  variant="red", width=140, command=self._restore_backup)
         self.btn_restore_backup.pack(side="right", padx=6, pady=10)
 
-        ctk.CTkButton(bottom, text=self.t("settings"), fg_color=COLOR_ACCENT,
-                      width=100, command=self._open_settings).pack(side="right", padx=10, pady=10)
+        CtkStyledButton(bottom, text=self.t("settings"), variant="transparent",
+                        width=100, command=self._open_settings).pack(side="right", padx=10, pady=10)
 
         # ── Riga opzioni ─────────────────────────────────────────────────
-        opts = ctk.CTkFrame(self, fg_color=COLOR_PANEL, height=44)
+        opts = CtkStyledFrame(self, fg_color=COLOR_PANEL, height=44, corner_radius=0, border_width=0)
         opts.pack(fill="x")
         opts.pack_propagate(False)
 
-        ctk.CTkLabel(opts, text="Options:", text_color=COLOR_SUBTEXT,
-                     font=ctk.CTkFont(size=11)).pack(side="left", padx=(12, 8), pady=10)
+        CtkStyledLabel(opts, text="Options:", sub=True,
+                       font=ctk.CTkFont(size=11)).pack(side="left", padx=(12, 8), pady=10)
 
         self.preserve_names_var = ctk.BooleanVar(value=self.settings.get("preserve_names", False))
-        ctk.CTkSwitch(opts, text="Preserve names", variable=self.preserve_names_var,
-                      command=self._on_option_change,
-                      onvalue=True, offvalue=False).pack(side="left", padx=10, pady=8)
+        CtkStyledSwitch(opts, text="Preserve names", variable=self.preserve_names_var,
+                       command=self._on_option_change,
+                       onvalue=True, offvalue=False).pack(side="left", padx=10, pady=8)
 
         self.translate_menu_var = ctk.BooleanVar(value=self.settings.get("translate_menu", True))
-        ctk.CTkSwitch(opts, text="Translate Menu", variable=self.translate_menu_var,
-                      command=self._on_option_change,
-                      onvalue=True, offvalue=False).pack(side="left", padx=10, pady=8)
+        CtkStyledSwitch(opts, text="Translate Menu", variable=self.translate_menu_var,
+                       command=self._on_option_change,
+                       onvalue=True, offvalue=False).pack(side="left", padx=10, pady=8)
 
     def _build_strings_tab(self):
         # Search bar
-        search_frame = ctk.CTkFrame(self.tab_strings, fg_color=COLOR_PANEL, height=36)
+        search_frame = CtkStyledFrame(self.tab_strings, fg_color=COLOR_PANEL, height=36, corner_radius=0, border_width=0)
         search_frame.pack(fill="x", padx=8, pady=(8, 4))
         search_frame.pack_propagate(False)
-        ctk.CTkLabel(search_frame, text=self.t("search"), text_color=COLOR_SUBTEXT).pack(side="left", padx=(8, 4))
+        CtkStyledLabel(search_frame, text=self.t("search"), sub=True).pack(side="left", padx=(8, 4))
         self.search_var = ctk.StringVar()
         self.search_var.trace_add("write", lambda *_: self._apply_filter())
-        self.search_entry = ctk.CTkEntry(search_frame, width=310, textvariable=self.search_var,
-                                         placeholder_text=self.t("search_placeholder"))
+        self.search_entry = CtkStyledEntry(search_frame, width=310, textvariable=self.search_var,
+                                           placeholder=self.t("search_placeholder"))
         self.search_entry.pack(side="left", padx=(0, 6), pady=4)
         self._search_scopes = {
             self.t("search_original"): "original",
@@ -524,18 +539,17 @@ class TranslatorApp(ctk.CTk):
             self.t("search_both"): "both",
         }
         self.search_scope_var = ctk.StringVar(value=self.t("search_both"))
-        self.search_scope_combo = ctk.CTkComboBox(search_frame, values=list(self._search_scopes), width=150,
+        self.search_scope_combo = CtkStyledComboBox(search_frame, values=list(self._search_scopes), width=150,
                                                    variable=self.search_scope_var, command=self._on_search_scope_change)
         self.search_scope_combo.pack(side="left", padx=4, pady=4)
 
         self.select_all_var = ctk.StringVar(value="off")
-        self.select_all_checkbox = ctk.CTkCheckBox(search_frame, text=self.t("select_all"), variable=self.select_all_var,
+        self.select_all_checkbox = CtkStyledCheckBox(search_frame, text=self.t("select_all"), variable=self.select_all_var,
                                                    onvalue="on", offvalue="off", command=self._on_select_all)
         self.select_all_checkbox.pack(side="left", padx=(8, 4), pady=4)
 
-        self.btn_delete_row = ctk.CTkButton(search_frame, text=self.t("delete_row"),
-                                            fg_color="#dc2626", hover_color="#b91c1c",
-                                            text_color="white", width=100, command=self._delete_selected_row)
+        self.btn_delete_row = CtkStyledButton(search_frame, text=self.t("delete_row"),
+                                              variant="red", width=100, command=self._delete_selected_row)
         self.btn_delete_row.pack(side="left", padx=(4, 8), pady=4)
         self.btn_delete_row.configure(state="disabled")
 
@@ -543,25 +557,24 @@ class TranslatorApp(ctk.CTk):
         self.table_frame.pack(fill="both", expand=True)
         self._build_table_header()
 
-        self.editor_frame = ctk.CTkFrame(self.tab_strings, fg_color=COLOR_PANEL, height=160)
+        self.editor_frame = CtkStyledFrame(self.tab_strings, fg_color=COLOR_PANEL, height=160, corner_radius=0, border_width=0)
         self.editor_frame.pack(side="bottom", fill="x", padx=8, pady=8)
         self.editor_frame.pack_propagate(False)
 
-        ctk.CTkLabel(self.editor_frame, text=self.t("edit_selected"), text_color=COLOR_SUBTEXT,
-                     font=ctk.CTkFont(size=11)).pack(anchor="w", padx=10, pady=(6, 2))
-        self.edit_text = ctk.CTkTextbox(self.editor_frame, height=80, font=ctk.CTkFont(size=12))
+        CtkStyledLabel(self.editor_frame, text=self.t("edit_selected"), sub=True,
+                       font=ctk.CTkFont(size=11)).pack(anchor="w", padx=10, pady=(6, 2))
+        self.edit_text = CtkStyledTextbox(self.editor_frame, height=80, font=ctk.CTkFont(size=12))
         self.edit_text.pack(fill="x", padx=10, pady=(0, 6))
         self.edit_text.configure(state="disabled")
 
         btn_row = ctk.CTkFrame(self.editor_frame, fg_color="transparent")
         btn_row.pack(fill="x", padx=10, pady=(0, 6))
-        self.btn_replace_all = ctk.CTkButton(btn_row, text=self.t("replace_all"), width=100,
-                                             fg_color=COLOR_ACCENT, text_color="white", command=self._open_replace_dialog)
+        self.btn_replace_all = CtkStyledButton(btn_row, text=self.t("replace_all"), variant="blue", width=100,
+                                               command=self._open_replace_dialog)
         self.btn_replace_all.pack(side="left", padx=4)
         self.btn_replace_all.configure(state="disabled")
-        self.btn_edit_save = ctk.CTkButton(btn_row, text=self.t("save_edit"), width=100,
-                                           fg_color=COLOR_BTN_MAIN, command=self._save_edit,
-                                           state="disabled")
+        self.btn_edit_save = CtkStyledButton(btn_row, text=self.t("save_edit"), variant="green", width=100,
+                                             command=self._save_edit, state="disabled")
         self.btn_edit_save.pack(side="right")
 
     def _build_table_header(self):
@@ -570,7 +583,7 @@ class TranslatorApp(ctk.CTk):
         header.pack(fill="x", pady=(0, 2))
         for text, width in cols:
             ctk.CTkLabel(header, text=text, width=width,
-                         font=ctk.CTkFont(weight="bold"), anchor="w").pack(side="left", padx=4, pady=4)
+                         font=ctk.CTkFont(family="Roboto", weight="bold"), anchor="w").pack(side="left", padx=4, pady=4)
         self.table_rows_frame = ctk.CTkFrame(self.table_frame, fg_color="transparent")
         self.table_rows_frame.pack(fill="both", expand=True)
 
@@ -579,9 +592,9 @@ class TranslatorApp(ctk.CTk):
         log_top.pack(fill="x")
         log_top.pack_propagate(False)
         self.verbose_var = ctk.BooleanVar(value=self.settings.get("verbose", False))
-        ctk.CTkCheckBox(log_top, text="Verbose (log every string)", variable=self.verbose_var,
-                        command=self._on_verbose_change, text_color=COLOR_SUBTEXT).pack(side="left", padx=12, pady=6)
-        self.log_text = ctk.CTkTextbox(self.tab_log, fg_color=COLOR_BG,
+        CtkStyledCheckBox(log_top, text="Verbose (log every string)", variable=self.verbose_var,
+                        command=self._on_verbose_change).pack(side="left", padx=12, pady=6)
+        self.log_text = CtkStyledTextbox(self.tab_log, fg_color=COLOR_BG,
                                        font=ctk.CTkFont(family="Courier", size=11))
         self.log_text.pack(fill="both", expand=True)
 
@@ -613,7 +626,7 @@ class TranslatorApp(ctk.CTk):
 
             # Checkbox
             var = ctk.StringVar(value="on" if abs_i in self._selected_indices else "off")
-            chk = ctk.CTkCheckBox(row, text="", width=24, variable=var,
+            chk = CtkStyledCheckBox(row, text="", width=24, variable=var,
                                   onvalue="on", offvalue="off")
             chk.pack(side="left", padx=4)
             chk.bind("<Button-1>", lambda event: "break")
@@ -629,7 +642,7 @@ class TranslatorApp(ctk.CTk):
             ]:
                 lbl = ctk.CTkLabel(row, text=val, width=w, anchor="w",
                                    text_color=COLOR_TEXT if item.translated else COLOR_SUBTEXT,
-                                   font=ctk.CTkFont(size=11))
+                                   font=ctk.CTkFont(family="Roboto", size=11))
                 lbl.pack(side="left", padx=4)
 
             def _make_click(idx=abs_i, it=item):
@@ -640,15 +653,15 @@ class TranslatorApp(ctk.CTk):
                     child.bind("<Button-1>", _make_click())
         # Pagination controls
         total_pages = max(1, (len(items) + self._page_size - 1) // self._page_size)
-        pag = ctk.CTkFrame(self.table_rows_frame, fg_color=COLOR_PANEL, height=32)
+        pag = CtkStyledFrame(self.table_rows_frame, fg_color=COLOR_PANEL, height=32, corner_radius=0, border_width=0)
         pag.pack(fill="x", pady=(4, 0))
         pag.pack_propagate(False)
-        ctk.CTkButton(pag, text="◀", width=36, fg_color=COLOR_ACCENT,
-                      command=self._prev_page).pack(side="left", padx=6, pady=4)
-        ctk.CTkLabel(pag, text=f"Page {self._page + 1} / {total_pages}  ({len(items)} strings)",
-                     text_color=COLOR_SUBTEXT, font=ctk.CTkFont(size=11)).pack(side="left", padx=8)
-        ctk.CTkButton(pag, text="▶", width=36, fg_color=COLOR_ACCENT,
-                      command=self._next_page).pack(side="left", padx=2, pady=4)
+        CtkStyledButton(pag, text="◀", variant="transparent", width=36,
+                       command=self._prev_page).pack(side="left", padx=6, pady=4)
+        CtkStyledLabel(pag, text=f"Page {self._page + 1} / {total_pages}  ({len(items)} strings)",
+                      sub=True, font=ctk.CTkFont(size=11)).pack(side="left", padx=8)
+        CtkStyledButton(pag, text="▶", variant="transparent", width=36,
+                       command=self._next_page).pack(side="left", padx=2, pady=4)
 
     def _prev_page(self):
         if self._page > 0:
@@ -761,27 +774,28 @@ class TranslatorApp(ctk.CTk):
         dialog.transient(self)
         dialog.grab_set()
 
-        ctk.CTkLabel(dialog, text=self.t("replace_all_find"), text_color=COLOR_SUBTEXT).pack(anchor="w", padx=20, pady=(20, 4))
-        find_entry = ctk.CTkEntry(dialog, width=350)
+        CtkStyledLabel(dialog, text=self.t("replace_all_find"), sub=True).pack(anchor="w", padx=20, pady=(20, 4))
+        find_entry = CtkStyledEntry(dialog, width=350)
         find_entry.pack(padx=20, pady=(0, 12))
 
-        ctk.CTkLabel(dialog, text=self.t("replace_all_replace"), text_color=COLOR_SUBTEXT).pack(anchor="w", padx=20, pady=(0, 4))
-        replace_entry = ctk.CTkEntry(dialog, width=350)
+        CtkStyledLabel(dialog, text=self.t("replace_all_replace"), sub=True).pack(anchor="w", padx=20, pady=(0, 4))
+        replace_entry = CtkStyledEntry(dialog, width=350)
         replace_entry.pack(padx=20, pady=(0, 12))
 
         case_sensitive_var = ctk.BooleanVar(value=False)
-        ctk.CTkCheckBox(dialog, text=self.t("replace_all_case"), variable=case_sensitive_var).pack(anchor="w", padx=20, pady=(0, 8))
+        CtkStyledCheckBox(dialog, text=self.t("replace_all_case"), variable=case_sensitive_var).pack(anchor="w", padx=20, pady=(0, 8))
 
         filtered_only_var = ctk.BooleanVar(value=True)
-        ctk.CTkCheckBox(dialog, text=self.t("replace_all_filtered"), variable=filtered_only_var).pack(anchor="w", padx=20, pady=(0, 8))
+        CtkStyledCheckBox(dialog, text=self.t("replace_all_filtered"), variable=filtered_only_var).pack(anchor="w", padx=20, pady=(0, 8))
 
         scope_var = ctk.StringVar(value="translation")
         scope_frame = ctk.CTkFrame(dialog, fg_color="transparent")
         scope_frame.pack(anchor="w", padx=20, pady=(0, 12))
-        ctk.CTkLabel(scope_frame, text=self.t("replace_all_scope"), text_color=COLOR_SUBTEXT).pack(side="left")
-        ctk.CTkRadioButton(scope_frame, text=self.t("replace_all_scope_original"), variable=scope_var, value="original").pack(side="left", padx=(8, 4))
-        ctk.CTkRadioButton(scope_frame, text=self.t("replace_all_scope_translation"), variable=scope_var, value="translation").pack(side="left", padx=4)
-        ctk.CTkRadioButton(scope_frame, text=self.t("replace_all_scope_both"), variable=scope_var, value="both").pack(side="left", padx=4)
+        CtkStyledLabel(scope_frame, text=self.t("replace_all_scope"), sub=True).pack(side="left")
+        _radio_kw = dict(fg_color=C["blue"], border_color=C["border"], hover_color=C["blue_hover"], text_color=C["text"])
+        ctk.CTkRadioButton(scope_frame, text=self.t("replace_all_scope_original"), variable=scope_var, value="original", **_radio_kw).pack(side="left", padx=(8, 4))
+        ctk.CTkRadioButton(scope_frame, text=self.t("replace_all_scope_translation"), variable=scope_var, value="translation", **_radio_kw).pack(side="left", padx=4)
+        ctk.CTkRadioButton(scope_frame, text=self.t("replace_all_scope_both"), variable=scope_var, value="both", **_radio_kw).pack(side="left", padx=4)
 
         btn_frame = ctk.CTkFrame(dialog, fg_color="transparent")
         btn_frame.pack(pady=20)
@@ -849,10 +863,10 @@ class TranslatorApp(ctk.CTk):
             else:
                 messagebox.showinfo(self.t("replace_all_title"), self.t("replace_all_no_matches").format(len(target_items), scope))
 
-        ctk.CTkButton(btn_frame, text=self.t("replace_all"), fg_color=COLOR_BTN_SUCCESS, width=100,
-                      command=do_replace).pack(side="left", padx=4)
-        ctk.CTkButton(btn_frame, text=self.t("cancel"), fg_color=COLOR_BTN_WARN, width=100,
-                      command=dialog.destroy).pack(side="left", padx=4)
+        CtkStyledButton(btn_frame, text=self.t("replace_all"), variant="green", width=100,
+                       command=do_replace).pack(side="left", padx=4)
+        CtkStyledButton(btn_frame, text=self.t("cancel"), variant="red", width=100,
+                       command=dialog.destroy).pack(side="left", padx=4)
 
     # ─── Game Selection ────────────────────────────────────────────────────
 
