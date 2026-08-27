@@ -26,6 +26,7 @@ cp -R "$SCRIPT_DIR/img" "$PROJECT_DIR/img"
 cp \
     "$SCRIPT_DIR/pyproject.toml" \
     "$SCRIPT_DIR/translator_tool.py" \
+    "$SCRIPT_DIR/ctk_components.py" \
     "$SCRIPT_DIR/tr_extractor.py" \
     "$SCRIPT_DIR/tr_parser.py" \
     "$SCRIPT_DIR/tr_translator.py" \

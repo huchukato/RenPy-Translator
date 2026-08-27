@@ -39,14 +39,14 @@ except ImportError:
 # ─── Costanti ────────────────────────────────────────────────────────────────
 
 APP_TITLE = "Ren'Py Translator"
-VERSION   = "2.3.0"
+VERSION   = "2.3.1"
 SCRIPT_DIR = Path(__file__).parent
 SETTINGS_FILE = SCRIPT_DIR / "translator_settings.json"
 
 LANGUAGES = {
     "English": "en", "Italian": "it", "French": "fr", "Spanish": "es",
     "German": "de", "Portuguese": "pt", "Japanese": "ja", "Chinese": "zh",
-    "Russian": "ru", "Korean": "ko", "Arabic": "ar",
+    "Russian": "ru", "Korean": "ko", "Arabic": "ar", "Turkish": "tr",
 }
 BACKENDS = {
     "Google Turbo": "google_turbo",

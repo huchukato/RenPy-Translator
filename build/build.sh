@@ -20,7 +20,7 @@ rm -rf "$OUT_DIR"
 mkdir -p "$OUT_DIR"
 
 # Copia file principali
-cp translator_tool.py tr_extractor.py tr_parser.py tr_translator.py tr_writer.py "$OUT_DIR/"
+cp translator_tool.py ctk_components.py tr_extractor.py tr_parser.py tr_translator.py tr_writer.py "$OUT_DIR/"
 cp start.sh start.bat pyproject.toml README.md README_it.md "$OUT_DIR/"
 cp -r img "$OUT_DIR/"
 

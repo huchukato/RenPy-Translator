@@ -56,7 +56,7 @@ OPENROUTER_FREE_MODELS = [
 LANG_NAMES = {
     "en": "English", "it": "Italian", "fr": "French", "es": "Spanish",
     "de": "German", "pt": "Portuguese", "ja": "Japanese", "zh": "Chinese",
-    "ar": "Arabic", "ru": "Russian", "ko": "Korean",
+    "ar": "Arabic", "ru": "Russian", "ko": "Korean", "tr": "Turkish",
 }
 
 
