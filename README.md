@@ -13,6 +13,8 @@
 
 ![Ren'Py Translator GUI](img/translator-gui.png)
 
+**[Download the latest release](https://github.com/huchukato/RenPy-Translator/releases/latest)**
+
 ---
 
 ## ✨ Features
@@ -113,6 +115,20 @@ pip install customtkinter pillow deep-translator requests
 If you also use **[Ren'Py WTForge](https://github.com/huchukato/RenPy-WTForge)** to generate a walkthrough mod, always **translate first**, then generate the mod — so WTForge picks up the translated choice texts automatically.
 
 Third-party walkthrough mods (e.g. Ronnu's) are automatically patched for translated caption compatibility — choice hints will display correctly in any language, without duplicating the original English text.
+
+---
+
+## Release builds on macOS
+
+Run one command from the project root to create the generic ZIP, Windows ZIP and native macOS DMG:
+
+```bash
+./build/build_all.sh
+```
+
+Artifacts are written to `dist/`. The Linux package is intentionally excluded because its embedded Python environment must be created on Linux.
+
+See [UPDATES.md](UPDATES.md) for the complete release history.
 
 ---
 
