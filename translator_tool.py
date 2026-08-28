@@ -39,7 +39,7 @@ except ImportError:
 # ─── Costanti ────────────────────────────────────────────────────────────────
 
 APP_TITLE = "Ren'Py Translator"
-VERSION   = "2.3.1"
+VERSION   = "2.3.2"
 SCRIPT_DIR = Path(__file__).parent
 SETTINGS_FILE = SCRIPT_DIR / "translator_settings.json"
 

@@ -7,6 +7,7 @@ Estrae stringhe traducibili dai file .rpy
 from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
+import ast
 import re
 
 
@@ -36,7 +37,7 @@ _RE_ONLY_VARS = re.compile(r'^(\[[^\]]+\]|\{[^}]+\}|[\s$%.,!?])+$')
 _RE_DEFINE = re.compile(r'^\s*define\s+')
 _RE_RENPY_INPUT = re.compile(r'renpy\.input\(\s*(["\'])(.+?)\1')
 _RE_RPY_TAG = re.compile(r'\{[^}]*\}')    # tag Ren'Py tipo {i}, {/i}, {color=#fff}
-_RE_GETTEXT = re.compile(r'\b_\(\s*"((?:[^\\"]|\\.)*)"\s*\)')  # _("...") Ren'Py i18n
+_RE_GETTEXT = re.compile(r'''\b_\(\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)')\s*\)''')  # _("...") Ren'Py i18n
 _RE_WT_MENU = re.compile(
     r'\(\s*["\'][^"\']+["\']\s*,\s*\d+\s*,\s*(["\'])(.+?)\1\s*\)\s*:\s*(["\'])(.+?)\3'
 )  # WT Mod: ("file.rpy", 123, "Choice"): "Choice ([tag]hint)",
@@ -74,6 +75,15 @@ def extract_character_names(game_dir: Path) -> set[str]:
 
 def _indent(s: str) -> int:
     return len(s) - len(s.lstrip())
+
+
+def _gettext_value(match: re.Match) -> str:
+    value = match.group(1) if match.group(1) is not None else match.group(2)
+    quote = '"' if match.group(1) is not None else "'"
+    try:
+        return ast.literal_eval(f"{quote}{value}{quote}")
+    except (SyntaxError, ValueError):
+        return value
 
 
 def _first_quoted(line: str) -> str | None:
@@ -156,6 +166,10 @@ def parse_rpy_file(file_path: Path, rel_from: Path, translate_menu: bool = True)
             continue
         if not stripped or _RE_COMMENT.match(stripped):
             continue
+        for m_gettext in _RE_GETTEXT.finditer(raw):
+            t = _gettext_value(m_gettext)
+            if t and _ok(t) and t not in seen_texts:
+                seen_texts.add(t); results.append(ExtractedString("ui", t, rel, idx, None))
         # Salta righe define che non sono Character() — es. define gui.about = _p(
         if _RE_DEFINE.match(raw) and not _RE_CHARACTER.match(raw):
             continue

@@ -1,6 +1,6 @@
 [project]
 name = "renpy-translator"
-version = "2.3.1"
+version = "2.3.2"
 requires-python = ">=3.9"
 dependencies = [
     "customtkinter>=5.2.0",
