@@ -26,8 +26,25 @@ echo "[RenPy-Translator] Building all releases available from macOS..."
 "$SCRIPT_DIR/build_win.sh"
 "$SCRIPT_DIR/build_mac_app.sh"
 
+LINUX_STATUS="skipped (Docker is not available)"
+if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+    echo "[RenPy-Translator] Building Linux x86_64 release with Docker..."
+    if docker run --rm \
+        --platform linux/amd64 \
+        --user "$(id -u):$(id -g)" \
+        --env HOME=/tmp \
+        --volume "$PROJECT_DIR:/workspace" \
+        --workdir /workspace \
+        python:3.12-bookworm \
+        ./build/build_linux.sh; then
+        LINUX_STATUS="completed with Docker (linux/amd64)"
+    else
+        LINUX_STATUS="failed; macOS and Windows artifacts are still available"
+    fi
+fi
+
 echo
 printf '%s\n' \
     "[RenPy-Translator] All macOS-compatible builds completed." \
-    "[RenPy-Translator] Linux was skipped because its embedded environment must be built on Linux." \
+    "[RenPy-Translator] Linux build: $LINUX_STATUS." \
     "[RenPy-Translator] Artifacts are available in: $PROJECT_DIR/dist"

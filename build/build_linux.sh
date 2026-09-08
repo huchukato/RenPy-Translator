@@ -17,7 +17,7 @@ mkdir -p "$OUT_DIR"
 
 # Crea un venv Linux-compatibile
 echo "[RenPy-Translator] Creating venv..."
-python3 -m venv "$OUT_DIR/.venv"
+python3 -m venv --copies "$OUT_DIR/.venv"
 "$OUT_DIR/.venv/bin/pip" install --upgrade pip -q
 "$OUT_DIR/.venv/bin/pip" install -q -r <(grep -E '^\s+"' "$SCRIPT_DIR/pyproject.toml" | sed 's/[",]//g' | awk '{print $1}')
 

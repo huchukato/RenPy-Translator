@@ -120,13 +120,13 @@ Third-party walkthrough mods (e.g. Ronnu's) are automatically patched for transl
 
 ## Release builds on macOS
 
-Run one command from the project root to create the generic ZIP, Windows ZIP and native macOS DMG:
+Run one command from the project root to create the generic ZIP, Windows ZIP, native macOS DMG and, when Docker Desktop is running, the Linux x86_64 package:
 
 ```bash
 ./build/build_all.sh
 ```
 
-Artifacts are written to `dist/`. The Linux package is intentionally excluded because its embedded Python environment must be created on Linux.
+Artifacts are written to `dist/`. The Linux environment is built inside the `python:3.12-bookworm` Docker image; if Docker is unavailable, the other builds still complete and Linux is skipped.
 
 See [UPDATES.md](UPDATES.md) for the complete release history.
 

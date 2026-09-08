@@ -122,13 +122,13 @@ Le mod walkthrough di terze parti (es. Ronnu's) vengono patchate automaticamente
 
 ## Build delle release su macOS
 
-Esegui un solo comando dalla cartella principale del progetto per creare lo ZIP generico, lo ZIP Windows e il DMG macOS nativo:
+Esegui un solo comando dalla cartella principale del progetto per creare lo ZIP generico, lo ZIP Windows, il DMG macOS nativo e, quando Docker Desktop è attivo, il pacchetto Linux x86_64:
 
 ```bash
 ./build/build_all.sh
 ```
 
-Gli artefatti vengono salvati in `dist/`. Il pacchetto Linux è escluso intenzionalmente perché il suo ambiente Python integrato deve essere creato su Linux.
+Gli artefatti vengono salvati in `dist/`. L'ambiente Linux viene creato nell'immagine Docker `python:3.12-bookworm`; se Docker non è disponibile, le altre build vengono comunque completate e Linux viene saltato.
 
 Consulta [UPDATES.md](UPDATES.md) per la cronologia completa delle release.
 
